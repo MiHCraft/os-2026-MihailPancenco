@@ -1,33 +1,33 @@
-# Labs 04-08: validation record
+# Labs 04-08: execution record
 
-Validation date: **23 October 2026**. The existing labs 01-03 and all teacher requirement PDFs were left unchanged.
+All laboratory commands and C programs were executed on **23 October 2026 inside UbuntuVM in VirtualBox**, as the ordinary user `misa`.
 
-## Environments
+## Environment
 
-- Linux: Debian GNU/Linux 12 (bookworm), ARM64, in a temporary Docker Desktop container on macOS; the permission experiments ran as non-root `student` with umask `0022`.
-- Linux compiler: GCC 12.2.0, using `-std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -O2` for lab 07.
-- xv6: official MIT xv6-riscv commit `f780d7850765d74cbdcd1fff4b822d8829f7c9bd`; GCC RISC-V cross compiler 12.2.0 and QEMU 7.2.22.
-- The xv6 behavioral transcript uses a combined image of labs 04, 06 and 08 with `CPUS=1`. Each submitted Makefile also produced its own filesystem image independently.
-- Reports: compiled locally with pdfLaTeX; rendered to images and checked for layout and readable terminal/source blocks.
+- Ubuntu 26.04.1 LTS, ARM64; Linux 7.0.0-38-generic.
+- GCC 15.2.0 and RISC-V GCC 15.2.0; QEMU 10.2.1.
+- Existing xv6 installation: `/home/misa/xv6-riscv`, commit `06aad25c735fd3159bdfae5680be4eab7b1668b2`.
+- Experiments and build logs: `/home/misa/os-labs-04-08-20261023/`.
+- The original xv6 files and disk image were backed up in `backup/xv6-before.tar.gz` inside that directory before changes.
 
-## Checks and results
+The Makefile's incorrect `$Y/_args` entry was corrected to `$U/_args`. Required sources and UPROGS entries were added to the installed checkout. Labs 04, 06 and 08 each built and booted their own xv6 image; the nested find test used another fresh image. All xv6 execution used `make qemu CPUS=1` from Ubuntu.
 
-| Lab | Checks | Result |
+## Results
+
+| Lab | Execution checks | Terminal screenshots |
 | --- | --- | --- |
-| 04 | sleep with and without argument; all command-line Bash comparisons; all four argv examples on Linux and xv6; source inspection of sh.c | Passed. Redirection printed `hello`; LIST was verified to call wait before its right command. |
-| 05 | File types, links, sparse files, chmod, umask, directory read/search, special bits, disk and /proc queries; gzip signature and open-unlinked-file bonus experiments | Recorded real output. The non-root permission denials and link-count changes matched the explanations. |
-| 06 | mystat for multiple paths and missing paths; hard links and unlink; long names; mkfs layout; nested find, directory match, trailing slash, missing path, bad option and -n | Passed. Three `r2` paths were found; only the root hard link shared cat's inode. |
-| 07 | All seven Linux programs compile with warnings as errors; ls/date/missing exec; zombie before and after wait; redirected file; two-/three-stage pipeline counts; deliberately unclosed parent writer | Passed. Counts matched the shell (112 and 106). The zombie was reaped; the broken pipeline left wc waiting and was stopped by the harness. |
-| 08 | Echo, ls and missing-executable run variants; pingpong byte round trip; optional prime sieve | Passed. Ping preceded pong; primes were 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31. |
+| 04 | sleep, shell comparison, four argv cases on both systems, executable paths, interactive keys and sh.c inspection | 10 |
+| 05 | File types and devices, inodes, hard/symbolic links, directory counts, sparse files, permissions, umask, special bits, disks and /proc, two bonus experiments | 8 |
+| 06 | mystat, hard links, long names, disk layout, nested find, -n, invalid paths/options and trailing slash | 5 |
+| 07 | All seven programs compile with warnings as errors; ls/date/missing exec, zombie before/after wait, redirection, two-/three-stage pipes and the deliberately unclosed writer | 7 |
+| 08 | Echo/ls/missing-executable variants, pingpong and the optional prime sieve | 4 |
 
-The submitted normal programs remain working versions; the deliberately broken pipe variant was compiled only in a temporary directory. Generated Linux executables and `out.txt` were removed after checking.
+All execution checks passed. Pipeline counts matched Ubuntu's shell: **237** for `/etc`, **231** for `/usr/bin` filtered by `grep x`. The temporary broken pipeline showed `wc -l` waiting for EOF and was terminated after observation. No zombie or broken-pipeline experiment remained running.
 
-## Interpretation limits
+Lab 05 measured **umask 0002**, root filesystem **ext4 on /dev/sda2**, **19%** root usage, **6 visible logical CPUs**, and **5,360,956 KiB** of RAM. Both `/dev/null` and actual block-device nodes were visible in Ubuntu. These values describe the Ubuntu VM used for the laboratory.
 
-Lab 05 records the available Linux VM/container, not a native Ubuntu installation on the student's laptop. Its root mount is overlay; ext4-backed `/dev/vda1` appears through bind-mounted configuration files. The block-device nodes are not exposed in the container's `/dev`, so the report documents this visibility limit instead of inventing a `b`-type listing. Disk fullness, visible logical CPUs and RAM must be interpreted in that environment. `collect.sh` can collect corresponding values on another Linux installation.
+## Evidence
 
-Lab 04's interactive Bash history/completion facilities are explained from the shell behavior; the automated comparison did not simulate interactive keypresses. Complete terminal records are supplied separately from abbreviated report excerpts. PIDs, inode assignments, file sizes, timestamps and directory counts are run-specific.
+Each submission contains its recorded `terminal-output.txt`; xv6 submissions also include `build-output.txt`. Lab 04 additionally separates its Bash and xv6 transcripts. The 34 PNG files under the report image directories are actual captures of the Ubuntu terminal. Only empty terminal margins were cropped; command text and results were not redrawn.
 
-## Deliverable locations
-
-Required C files for xv6 are under `lab_04/submission/user/`, `lab_06/submission/user/` and `lab_08/submission/user/`, matching the handouts. Linux C files are directly under their submission directory. Each lab contains its required `notes.md` or `report.md`, and each report directory includes editable LaTeX and `main.pdf`.
+The LaTeX reports were updated from those measurements and captures, compiled to PDF, and rendered for layout checks. Labs 01-03, the requirement PDFs and the minimal root README were left unchanged.

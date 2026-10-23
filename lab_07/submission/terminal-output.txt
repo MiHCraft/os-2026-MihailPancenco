@@ -1,117 +1,123 @@
-### run
-$ ./run
-parent: my PID is 8781
-child:  my PID is 8782, my parent is 8781
-total 536
--rw-r--r-- 1 student student   253 Oct 23 09:36 Makefile
--rwxr-xr-x 1 student student 70792 Oct 23 09:36 pipeline
--rw-r--r-- 1 student student  1294 Oct 23 09:36 pipeline.c
--rwxr-xr-x 1 student student 70912 Oct 23 09:36 pipeline3
--rw-r--r-- 1 student student  1475 Oct 23 09:36 pipeline3.c
--rwxr-xr-x 1 student student 70888 Oct 23 09:36 redirect
--rw-r--r-- 1 student student   755 Oct 23 09:36 redirect.c
--rwxr-xr-x 1 student student 70880 Oct 23 09:36 run
--rw-r--r-- 1 student student   663 Oct 23 09:36 run.c
--rwxr-xr-x 1 student student 70888 Oct 23 09:36 run_date
--rw-r--r-- 1 student student   661 Oct 23 09:36 run_date.c
--rwxr-xr-x 1 student student 70888 Oct 23 09:36 run_missing
--rw-r--r-- 1 student student   673 Oct 23 09:36 run_missing.c
--rwxr-xr-x 1 student student 70936 Oct 23 09:36 zombie
--rw-r--r-- 1 student student   733 Oct 23 09:36 zombie.c
-parent: child 8782 ended with status 0
+UbuntuVM - Bash - 23 October 2026
 
-
-### run_date
-$ ./run_date
-parent: my PID is 8783
-child:  my PID is 8784, my parent is 8783
-Fri Oct 23 09:38:56 UTC 2026
-parent: child 8784 ended with status 0
-
-
-### run_missing
-$ ./run_missing
-parent: my PID is 8785
-child:  my PID is 8786, my parent is 8785
+[linux] cd /home/misa/os-labs-04-08-20261023/lab07
+cd /home/misa/os-labs-04-08-20261023/lab07
+misa@UbuntuVM:lab07$
+[linux] gcc --version | head -1
+gcc --version | head -1
+gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+misa@UbuntuVM:lab07$
+[linux] make
+make
+gcc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -O2 -o run run.c
+gcc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -O2 -o run_date run_date.c
+gcc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -O2 -o run_missing run_missing.c
+gcc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -O2 -o zombie zombie.c
+gcc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -O2 -o redirect redirect.c
+gcc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -O2 -o pipeline pipeline.c
+gcc -std=c11 -D_POSIX_C_SOURCE=200809L -Wall -Wextra -Werror -O2 -o pipeline3 pipeline3.c
+misa@UbuntuVM:lab07$
+[linux] ./run
+./run
+parent: my PID is 37341
+child:  my PID is 37342, my parent is 37341
+total 144
+-rw-r----- 1 misa misa   253 Oct 23 09:36 Makefile
+-rwxrwxr-x 1 misa misa 70848 Oct 23 13:09 pipeline
+-rw-r----- 1 misa misa  1294 Oct 23 09:36 pipeline.c
+-rwxrwxr-x 1 misa misa 70968 Oct 23 13:09 pipeline3
+-rw-r----- 1 misa misa  1475 Oct 23 09:36 pipeline3.c
+-rwxrwxr-x 1 misa misa 70944 Oct 23 13:09 redirect
+-rw-r----- 1 misa misa   755 Oct 23 09:36 redirect.c
+-rwxrwxr-x 1 misa misa 70936 Oct 23 13:09 run
+-rw-r----- 1 misa misa   663 Oct 23 09:36 run.c
+-rwxrwxr-x 1 misa misa 70944 Oct 23 13:09 run_date
+-rw-r----- 1 misa misa   661 Oct 23 09:36 run_date.c
+-rwxrwxr-x 1 misa misa 70944 Oct 23 13:09 run_missing
+-rw-r----- 1 misa misa   673 Oct 23 09:36 run_missing.c
+-rwxrwxr-x 1 misa misa 70984 Oct 23 13:09 zombie
+-rw-r----- 1 misa misa   733 Oct 23 09:36 zombie.c
+parent: child 37342 ended with status 0
+misa@UbuntuVM:lab07$
+[linux] ./run_date
+./run_date
+parent: my PID is 37605
+child:  my PID is 37606, my parent is 37605
+Fri Oct 23 13:09:37 UTC 2026
+parent: child 37606 ended with status 0
+misa@UbuntuVM:lab07$
+[linux] ./run_missing
+./run_missing
+parent: my PID is 37607
+child:  my PID is 37608, my parent is 37607
 exec: No such file or directory
-parent: child 8786 ended with status 127
-
-
-### redirect
-$ ./redirect
+parent: child 37608 ended with status 127
+misa@UbuntuVM:lab07$
+[linux] ./zombie > /dev/null & zpid=$!
+./zombie > /dev/null & zpid=$!
+[1] 37875
+misa@UbuntuVM:lab07$
+[linux] sleep 2; zchild=$(pgrep -P "$zpid" | head -1)
+sleep 2; zchild=$(pgrep -P "$zpid" | head -1)
+misa@UbuntuVM:lab07$
+[linux] ps -o pid,ppid,stat,cmd -p "$zpid,$zchild"
+ps -o pid,ppid,stat,cmd -p "$zpid,$zchild"
+    PID    PPID STAT CMD
+  37875   31888 S    ./zombie
+  37876   37875 Z    [ls] <defunct>
+misa@UbuntuVM:lab07$
+[linux] wait "$zpid"
+wait "$zpid"
+[1]+  Done                       ./zombie > /dev/null
+misa@UbuntuVM:lab07$
+[linux] ps -o pid,ppid,stat,cmd -p "$zchild"
+ps -o pid,ppid,stat,cmd -p "$zchild"
+    PID    PPID STAT CMD
+misa@UbuntuVM:lab07$
+[linux] ./redirect
+./redirect
 open gave descriptor 1
 done: the listing is in out.txt
-
-
-### pipeline
-$ ./pipeline
-112
-
-
-### pipeline3
-$ ./pipeline3
-106
-
-
-### shell_pipeline
-$ bash -c ls /etc | wc -l
-112
-
-
-### shell_pipeline3
-$ bash -c ls /usr/bin | grep x | wc -l
-106
-
-
-### zombie_before
-$ ps -o pid,ppid,stat,cmd -p 8803,8804
-  PID  PPID STAT CMD
- 8803  8776 S    ./zombie
- 8804  8803 Z    [ls] <defunct>
-
-
-### zombie_after
-$ ps -o pid,ppid,stat,cmd -p 8804
-  PID  PPID STAT CMD
-
-
-### broken_pipeline
-$ ./broken (parent write end left open)
-  PID  PPID STAT CMD
- 8812  8776 Ss   /tmp/tmpeiiz8bal/broken
- 8814  8812 S    wc -l
-Still running after 1 second; stopped by test harness.
-
-
-### args_0
-$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args one   two  three
-argc = 4
-argv[0] = [args]
-argv[1] = [one]
-argv[2] = [two]
-argv[3] = [three]
-
-
-### args_1
-$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args *.c "x y"
-argc = 4
-argv[0] = [args]
-argv[1] = [a.c]
-argv[2] = [b.c]
-argv[3] = [x y]
-
-
-### args_2
-$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args $HOME
-argc = 2
-argv[0] = [args]
-argv[1] = [/home/student]
-
-
-### args_3
-$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args 'single quoted'
-argc = 2
-argv[0] = [args]
-argv[1] = [single quoted]
-
-All Linux behavior assertions passed.
+misa@UbuntuVM:lab07$
+[linux] head -3 out.txt
+head -3 out.txt
+total 144
+-rw-r----- 1 misa misa   253 Oct 23 09:36 Makefile
+-rw-r--r-- 1 misa misa     0 Oct 23 13:09 out.txt
+misa@UbuntuVM:lab07$
+[linux] ./pipeline
+./pipeline
+237
+misa@UbuntuVM:lab07$
+[linux] ls /etc | wc -l
+ls /etc | wc -l
+237
+misa@UbuntuVM:lab07$
+[linux] ./pipeline3
+./pipeline3
+231
+misa@UbuntuVM:lab07$
+[linux] ls /usr/bin | grep x | wc -l
+ls /usr/bin | grep x | wc -l
+231
+misa@UbuntuVM:lab07$
+[linux] gcc -Wall -Wextra -Werror -o pipeline_broken pipeline_broken.c
+gcc -Wall -Wextra -Werror -o pipeline_broken pipeline_broken.c
+misa@UbuntuVM:lab07$
+[linux] cd /home/misa/os-labs-04-08-20261023/lab07
+cd /home/misa/os-labs-04-08-20261023/lab07
+misa@UbuntuVM:lab07$
+[linux] ./pipeline_broken > broken-output.txt & bpid=$!
+./pipeline_broken > broken-output.txt & bpid=$!
+[1] 44821
+misa@UbuntuVM:lab07$
+[linux] sleep 1; ps -o pid,ppid,stat,cmd -p "$bpid" --ppid "$bpid"
+sleep 1; ps -o pid,ppid,stat,cmd -p "$bpid" --ppid "$bpid"
+    PID    PPID STAT CMD
+  44821   44820 S    ./pipeline_broken
+  44823   44821 S    wc -l
+misa@UbuntuVM:lab07$
+[linux] kill -- -"$bpid"; wait "$bpid"
+kill -- -"$bpid"; wait "$bpid"
+[1]+  Terminated                 ./pipeline_broken > broken-output.txt
+misa@UbuntuVM:lab07$

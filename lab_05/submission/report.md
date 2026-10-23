@@ -1,305 +1,219 @@
 # Lab 05 - The File System with Your Own Hands
 
-## Environment and evidence
+## Environment
 
-These experiments were run on 23 October 2026 in a Debian GNU/Linux ARM64 container hosted by Docker Desktop on macOS. The commands ran as ordinary user `student`, not root, with umask `0022`. The experiment directory was a fresh temporary directory on the Linux filesystem, not the macOS shared repository. This matters for permissions, inodes, sparse files and link counts.
-
-The terminal excerpts are real captured output; listings are shortened where indicated. `terminal-output.txt` retains the full session. The disk, memory, CPU and directory-size measurements describe the Linux environment used for validation, not a separately booted Ubuntu laptop. `collect.sh` repeats all commands without altering existing work and deletes its temporary experiment directory on exit.
+The experiments were performed inside Ubuntu 26.04.1 LTS (ARM64) in VirtualBox on 23 October 2026. The user was `misa`, not root. All experiment files were created in `~/os-labs-04-08-20261023/lab05`, on Ubuntu's ext4 filesystem. The measured umask was `0002`. The figures show the actual Ubuntu terminal; `terminal-output.txt` contains the full command output.
 
 ## Part 1 - The tree and file types
 
-```text
-$ whoami
-student
-$ ls -ld /etc /etc/passwd /bin /dev/null /tmp
-lrwxrwxrwx 1 root root    7 Aug 24 00:00 /bin -> usr/bin
-crw-rw-rw- 1 root root 1, 3 Oct 23 09:33 /dev/null
-drwxr-xr-x 1 root root 4096 Oct 23 09:35 /etc
--rw-r--r-- 1 root root 1125 Oct 23 09:35 /etc/passwd
-drwxrwxrwt 1 root root 4096 Oct 23 09:38 /tmp
-$ file /usr/bin/ls /etc/passwd /bin
-/usr/bin/ls: ELF 64-bit LSB pie executable, ARM aarch64, dynamically linked [...]
-/etc/passwd: ASCII text
-/bin:        symbolic link to usr/bin
-```
 
-### 1. Types from ls -l
+![Ubuntu file types, real character/block devices, file identification and directory sizes.](../report/img/05_01_types.png)
+
+
+### 1. Types from the first character of ls -l
 
 | Path | First character | Type |
 | --- | --- | --- |
-| `/etc` | `d` | Directory holding system configuration. |
-| `/etc/passwd` | `-` | Regular file with account metadata. |
-| `/bin` | `l` | Symbolic link to `usr/bin`, resolved as `/usr/bin`. |
-| `/dev/null` | `c` | Character device; writes are discarded and reads return EOF. |
-| `/tmp` | `d` | Directory for temporary files, with a sticky bit. |
+| `/etc` | `d` | Directory containing system configuration. |
+| `/etc/passwd` | `-` | Regular file containing account metadata. |
+| `/bin` | `l` | Symbolic link to `usr/bin`. |
+| `/dev/null` | `c` | Character device. |
+| `/tmp` | `d` | Temporary directory with a sticky bit. |
 
-The first character describes the inode type, while the next nine characters describe access permissions. A symbolic link has its own inode and stores a pathname to resolve.
+The type character is separate from the following nine permission bits. In this Ubuntu installation, `file /usr/bin/ls` also reports a symbolic link, to `../lib/cargo/bin/coreutils/ls`. Following it with `file -L /usr/bin/ls` identifies an ARM aarch64 ELF executable. `file /etc/passwd` reports ASCII text.
 
-### 2. What /bin is
+### 2. What /bin is and where it points
 
-On this merged-/usr installation, `/bin` is a symbolic link, not a separate directory. Its stored target is the relative pathname `usr/bin`; relative to its parent `/`, that is `/usr/bin`.
+`/bin` is a symbolic link containing the relative target `usr/bin`. Because its parent is `/`, that resolves to `/usr/bin`. It is part of this installation's merged-/usr layout.
 
-### 3. Character and block devices
+### 3. One character device and one block device
 
-`/dev/null` is a character device, major 1, minor 3. `lsblk` identifies virtual disk `vda` and partition `vda1`; `df` reports the source `/dev/vda1` for the files bind-mounted at `/etc/hosts`, `/etc/hostname` and `/etc/resolv.conf`. The isolated container does not expose that block-device node in its own `/dev`, so a `b`-type entry could not be directly listed there. This is a container visibility limit, not evidence that the Linux VM has no block devices. On a full Linux installation, `ls -l /dev/vda /dev/vda1` (or the actual `sda`/`nvme` names) lists the block nodes. No synthetic block node was created for this report.
 
-### 4. Compare /var/log and /usr
+```text
+$ ls -l /dev/null /dev/sda /dev/sda2
+crw-rw-rw- 1 root root 1, 3 Oct 23 12:47 /dev/null
+brw-rw---- 1 root disk 8, 0 Oct 23 12:47 /dev/sda
+brw-rw---- 1 root disk 8, 2 Oct 23 12:47 /dev/sda2
+```
+
+
+`/dev/null` is a character device (major 1, minor 3). `/dev/sda` is a block device (major 8, minor 0), and `/dev/sda2` is its second partition (major 8, minor 2). These are actual device nodes visible inside Ubuntu. Reads from `/dev/null` return EOF and writes are discarded; the disk is accessed in blocks.
+
+### 4. Which directory is larger?
+
 
 ```text
 $ du -sh /var/log 2>/dev/null ; du -sh /usr 2>/dev/null
-504K    /var/log
-1.5G    /usr
+37M	/var/log
+5.9G	/usr
 ```
 
-`/usr` is larger by about 1.5 GiB, roughly 3,100 times the rounded `/var/log` value. These are allocated-space estimates from `du`, not sums of apparent lengths. Diagnostics for unreadable paths were suppressed as the handout requests.
+
+`/usr` occupies about 5.9 GiB versus 37 MiB for `/var/log`: roughly 5.86 GiB more, or about 160 times as much, based on the rounded output. `du` measures allocated storage; unreadable-path diagnostics were suppressed as required.
 
 ## Part 2 - Inodes and links
 
-### 1. Inode number and link count
+### 1. Inode number and count of names
 
-```text
-$ echo hello > notes.txt
-$ stat notes.txt
-  File: notes.txt
-  Size: 6       Blocks: 8       IO Block: 4096   regular file
-Device: 0,97    Inode: 33824229    Links: 1
-Access: (0644/-rw-r--r--)  Uid: (1001/student) Gid: (1001/student)
-[time fields omitted]
-$ ls -li notes.txt
-33824229 -rw-r--r-- 1 student student 6 Oct 23 09:38 notes.txt
-```
+`echo hello > notes.txt` created a six-byte file, including the newline. `stat` reported inode **395308**, **Links: 1**, size 6 and 8 allocated accounting blocks. The initial mode was 0664 under umask 0002. An inode identifies the object within its filesystem; a directory entry associates a name with that inode.
 
-`Inode: 33824229` identifies this inode within its filesystem; `Links: 1` counts hard-link directory entries naming it. The inode is not globally unique without a device/filesystem identifier. The filename lives in a directory entry, not inside the inode. `echo hello` writes six bytes, including its newline.
+![The same inode through two hard links, followed by a dangling symbolic link.](../report/img/05_02_links.png)
 
-### 2. Removing the original name
+
+### 2. Why hard.txt survived rm notes.txt
+
 
 ```text
 $ ln notes.txt hard.txt
 $ ls -li notes.txt hard.txt
-33824229 -rw-r--r-- 2 student student 6 Oct 23 09:38 hard.txt
-33824229 -rw-r--r-- 2 student student 6 Oct 23 09:38 notes.txt
+395308 -rw-rw-r-- 2 misa misa 6 Oct 23 13:09 hard.txt
+395308 -rw-rw-r-- 2 misa misa 6 Oct 23 13:09 notes.txt
 $ rm notes.txt
 $ cat hard.txt ; ls -li hard.txt
 hello
-33824229 -rw-r--r-- 1 student student 6 Oct 23 09:38 hard.txt
+395308 -rw-rw-r-- 1 misa misa 6 Oct 23 13:09 hard.txt
 ```
 
-Both names point to the same inode. `rm` unlinks a directory entry and decreases the inode's link count; it does not distinguish an original name from a hard link. `hard.txt` remains readable with the same inode and content. Storage is reclaimable when the final hard link and final open reference are both gone.
 
-### 3. Dangling symbolic link and its size
+Both names referred to inode 395308. Creating the second name raised its link count to 2 without copying the contents. `rm` removes a directory entry and decreases the count; it does not treat the first-created name as special. After removing `notes.txt`, the remaining name still opened the same six-byte object with link count 1. Storage can be reclaimed after both the final hard link and final open reference disappear.
 
-```text
-$ ln -s hard.txt soft.txt
-$ ls -li hard.txt soft.txt
-33824229 -rw-r--r-- 1 student student 6 Oct 23 09:38 hard.txt
-33824251 lrwxrwxrwx 1 student student 8 Oct 23 09:38 soft.txt -> hard.txt
-$ cat soft.txt
-hello
-$ rm hard.txt
-$ cat soft.txt ; ls -l soft.txt
-cat: soft.txt: No such file or directory
-lrwxrwxrwx 1 student student 8 Oct 23 09:38 soft.txt -> hard.txt
-```
+### 3. Why the symlink became unreadable, and its size
 
-The symlink has a different inode and stores the eight-byte string `hard.txt` (no terminating NUL or newline is counted in its size). After unlinking the target, the symlink still exists, but resolving its pathname fails. A symlink does not increase the target's hard-link count.
+`soft.txt` had its own inode, 395309, and stored the pathname `hard.txt`. It initially resolved to the readable target. After `rm hard.txt`, `cat soft.txt` failed with `No such file or directory`, although `ls -l soft.txt` still displayed the symlink.
+
+The symlink's logical size was exactly **8 bytes**, the length of `hard.txt`, without a terminating NUL or newline. It stores a pathname, not a hard-link reference that keeps the target inode alive.
 
 ### 4. Directory link counts
 
-Prediction: 2 links initially, then 4 after creating two immediate subdirectories. The measured result agrees:
+The prediction was 2 links for a new directory and 4 after creating two immediate subdirectories. The actual `ls -ld d` outputs confirmed both values.
 
-```text
-$ mkdir d ; ls -ld d
- drwxr-xr-x 2 student student 4096 Oct 23 09:38 d
-$ mkdir d/x d/y ; ls -ld d
- drwxr-xr-x 4 student student 4096 Oct 23 09:38 d
-```
+The parent entry naming `d` and `d/.` account for its first two links. `d/x/..` and `d/y/..` each add one link back to `d`. The entry `d/..` points to d's parent and therefore does not add a link to d itself.
 
-The parent entry naming `d` and `d/.` account for the first two links. `d/x/..` and `d/y/..` each add a reference to `d`. The entry `d/..` points to d's parent, not back to d. This common Unix rule is filesystem dependent; the experiment filesystem implements it.
+![Directory links and the difference between apparent size and allocated space.](../report/img/05_03_directories_space.png)
 
-### 5. Apparent size versus allocated space
 
-```text
-$ echo x > one.txt ; ls -l one.txt ; du -h one.txt
--rw-r--r-- 1 student student 2 Oct 23 09:38 one.txt
-4.0K    one.txt
-$ truncate -s 1G big.img ; ls -lh big.img ; du -h big.img
--rw-r--r-- 1 student student 1.0G Oct 23 09:38 big.img
-0       big.img
-$ rm big.img
-```
+### 5. Why two bytes use 4 KiB, but a 1 GiB file uses zero data blocks
 
-The two bytes are `x` and a newline. This filesystem allocates data in 4 KiB units; stat reports eight 512-byte accounting blocks. `truncate -s 1G` sets the logical length to 1,073,741,824 bytes without writing the data. The file is sparse: reads from holes return zeros and no data blocks are allocated yet. The displayed zero does not mean that its inode and other metadata require no storage.
+`echo x > one.txt` wrote `x` plus a newline: size 2 bytes, but `du -h one.txt` reported 4.0K. This ext4 filesystem allocates data in blocks, so the small file uses one 4 KiB block (8 accounting units of 512 bytes).
+
+`truncate -s 1G big.img` produced a logical length of 1,073,741,824 bytes, while `du -h big.img` reported 0. It is a sparse file whose holes read as zeros without allocated data blocks. Its inode and other metadata still require storage. The temporary image was removed after the check.
 
 ## Part 3 - Permissions
 
-### 1. Numeric modes and uses
+### 1. Modes and uses
 
-| Mode | Nine permission bits | Typical use |
+| Mode | Permission string | Example use |
 | --- | --- | --- |
-| `600` | `rw-------` | A private text file or private SSH key. |
-| `644` | `rw-r--r--` | A document readable by other users but writable only by its owner. |
-| `755` | `rwxr-xr-x` | A public directory or executable. |
+| `600` | `rw-------` | A private data file or SSH private key. |
+| `644` | `rw-r--r--` | A public document writable only by its owner. |
+| `755` | `rwxr-xr-x` | A shared directory or executable. |
 | `700` | `rwx------` | A private directory or personal executable. |
 
-The type character shown by `ls -l` is separate from these nine bits. The owner, group and others each use weights read=4, write=2 and execute/search=1.
+The owner, group and others each use read=4, write=2 and execute/search=1. The separate type character is not part of the numeric permission mode.
 
-### 2. Why ownership does not bypass 000
+### 2. Why owning a mode-000 file does not make it readable
 
-```text
-$ echo secret > s.txt
-$ chmod 600 s.txt ; ls -l s.txt
--rw------- 1 student student 7 Oct 23 09:38 s.txt
-$ chmod 000 s.txt ; cat s.txt
-cat: s.txt: Permission denied
-$ chmod u+r s.txt ; cat s.txt
-secret
-```
+`chmod 000 s.txt ; cat s.txt` returned `Permission denied`. As the owner, `misa` is checked against the owner permission class, which had no read bit. Ownership permits changing the mode with chmod, rather than automatically bypassing data access checks. After `chmod u+r s.txt`, cat printed `secret`.
 
-For this ordinary user, the kernel selects the owner's permission class, which has no read bit under mode 000. Ownership permits changing the mode with `chmod`; it does not grant automatic data access. After adding owner-read, the file can be opened. Running as root could invalidate this experiment because privileged processes can bypass ordinary access checks.
+![Mode-000 denial, umask 0002, and directory read/search permissions.](../report/img/05_04_permissions.png)
 
-### 3. Umask and new objects
+
+### 3. Umask and permissions of newly created objects
+
 
 ```text
 $ umask ; touch new.txt ; mkdir newdir ; ls -ld new.txt newdir
-0022
--rw-r--r-- 1 student student    0 Oct 23 09:38 new.txt
-drwxr-xr-x 2 student student 4096 Oct 23 09:38 newdir
+0002
+-rw-rw-r-- 1 misa misa    0 Oct 23 13:09 new.txt
+drwxrwxr-x 2 misa misa 4096 Oct 23 13:09 newdir
 ```
 
-The starting mode for an ordinary new file is 0666; for a directory it is 0777. Applying `mode & ~umask` gives `0666 & ~0022 = 0644` and `0777 & ~0022 = 0755`. A umask removes bits; it does not add executable permission to new text files. ACLs can further affect creation, but none is needed to explain these results.
 
-### 4. Directory read versus execute
+The measured mask is **0002**. Ordinary files begin with requested mode 0666, giving `0666 & ~0002 = 0664` (`rw-rw-r--`). Directories begin with 0777, giving `0777 & ~0002 = 0775` (`rwxrwxr-x`). Umask removes requested bits and does not add execute permission to a new text file.
 
-Prediction for read-only: names can be listed, but `box/f` cannot be opened. Prediction for execute-only: listing fails, but a known filename can be opened if the file itself permits reading. Both predictions were confirmed.
+### 4. Directory r versus x
 
-```text
-$ mkdir box ; echo hi > box/f
-$ chmod u=r,go= box ; ls box ; cat box/f
-f
-cat: box/f: Permission denied
-$ chmod u=x,go= box ; ls box ; cat box/f
-ls: cannot open directory 'box': Permission denied
-hi
-$ chmod 755 box
-```
+Prediction for read-only: list names, but fail to open a known file. Prediction for execute-only: fail to list names, but allow access to a known file if that file is readable. The results matched:
 
-Directory `r` allows reading its list of names. Directory `x` allows searching/resolving a known entry and traversing the directory. Reading a file needs search permission on each parent directory and read permission on the file. Directory `w` together with `x` controls creating/removing names, independently of the file's own write bit.
+- With `chmod u=r,go= box`, `ls box` printed `f`, but `cat box/f` was denied.
+- With `chmod u=x,go= box`, `ls box` was denied, but `cat box/f` printed `hi`.
 
-### 5. setuid, sticky bit and /etc/shadow
+Directory read permission allows reading the list of names. Execute/search permission allows resolving a known entry and traversing the directory. Opening a file requires search permission through its parent directories and the file's own read permission. Directory write together with search controls creating/removing names. The mode was restored to 755 after the test.
 
-```text
-$ ls -l /usr/bin/passwd ; ls -ld /tmp
--rwsr-xr-x 1 root root 72048 Dec 14 2025 /usr/bin/passwd
-drwxrwxrwt 1 root root 4096 Oct 23 09:38 /tmp
-$ cat /etc/shadow
-cat: /etc/shadow: Permission denied
-$ ls -l /etc/shadow
--rw-r----- 1 root shadow 617 Oct 23 09:35 /etc/shadow
-```
+### 5. Meaning of s and t
 
-The owner's `s` denotes setuid plus owner-execute. When permitted by the execution environment, executing `passwd` gives it the effective UID of its owner, root, so it can update protected password data after enforcing authentication rules. The sticky `t` on `/tmp` permits shared creation while restricting removal/renaming to the file owner, directory owner or a privileged process. Sticky does not prevent reading someone else's readable file.
 
-`/etc/shadow` is owned by root and group shadow; `student` cannot read it. World-readable account metadata in `/etc/passwd` is separate from protected password hashes.
+![The setuid passwd program, sticky temporary directory and protected shadow file.](../report/img/05_05_special_bits.png)
+
+
+`/usr/bin/passwd` displayed `-rwsr-xr-x`: `s` in the owner position denotes setuid plus execute. When executed with the normal privilege rules, its effective UID becomes that of its owner, root, allowing controlled updates to protected password data after authentication checks.
+
+`/tmp` displayed `drwxrwxrwt`: the sticky `t` restricts removal and renaming of other users' entries in this shared writable directory. It does not itself prevent reading a readable file. `/etc/shadow` was owned by root and group shadow with mode 0640; `cat /etc/shadow` as `misa` correctly returned `Permission denied`.
 
 ## Part 4 - Disks and the kernel as files
 
-### 1. Disk drawing and the root mount
+### 1. Disk, partitions, root mount and filesystem type
 
-Recorded `lsblk` excerpt:
 
-```text
-NAME   MAJ:MIN   SIZE RO TYPE MOUNTPOINTS
-vda    254:0       1T  0 disk
-`-vda1 254:1    1024G  0 part /etc/hosts
-                             /etc/hostname
-                             /etc/resolv.conf
-vdb    254:16  536.9M  1 disk
-[zero-sized network-block devices omitted]
+![The Ubuntu virtual disk, partitions, root usage and ext4 mount.](../report/img/05_06_disks.png)
+
+
+```diagram
+sda: 50 GiB virtual disk
+  sda1: 1 GiB, vfat, mounted at /boot/efi
+  sda2: 48.9 GiB, ext4, mounted at /
+sr0: VirtualBox Guest Additions optical disc
+loop0 ... loop16: read-only Snap application images
 ```
 
-The measured topology is:
+`lsblk` gives the disk/partition tree. `mount | grep " / "` printed `/dev/sda2 on / type ext4 (rw,relatime)`, confirmed by findmnt. The EFI filesystem type was also checked with `findmnt -no SOURCE,FSTYPE,TARGET /boot/efi`, which reported `/dev/sda1 vfat /boot/efi`.
 
-```text
-Docker Desktop Linux VM
-  vda (1 TiB virtual disk)
-    vda1 (1024 GiB partition, ext4 backing storage)
-      container image layers + writable layer
-        overlay mounted at / inside this container
-      bind-mounted configuration files (/etc/hosts, etc.)
-  vdb (536.9 MiB, read-only virtual disk)
-```
+### 2. How full is the root filesystem?
 
-`mount` reports `overlay on / type overlay (rw,relatime,...)`. No partition is mounted directly on the container's `/`; overlay combines read-only image layers with a writable layer. The backing `/dev/vda1` mounts are ext4, verified with `findmnt -no SOURCE,FSTYPE,TARGET /etc/hosts`. Thus it would be incorrect to label the container root mount itself ext4. This drawing describes the VM/container topology that was actually available.
-
-### 2. Root filesystem fullness
 
 ```text
 $ df -h /
-Filesystem  Size  Used Avail Use% Mounted on
-overlay    1007G   25G  931G   3% /
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda2        48G  8.5G   37G  19% /
 ```
 
-The root mount reports about 25 GiB used and 3% usage, with about 931 GiB available. The 1 TiB virtual disk and rounded `df` capacity differ because of filesystem metadata and accounting. Available space can also exclude reserved blocks; used plus available need not equal total.
 
-### 3. CPU and RAM from /proc
+The root filesystem reported **48G total, 8.5G used, 37G available and 19% usage**. These are rounded filesystem figures, not the raw partition size. Metadata and reserved space help explain why total, used and available values do not add up exactly.
+
+### 3. CPU count and RAM according to /proc
+
+
+![Visible Ubuntu CPU count, memory, process status and open descriptors.](../report/img/05_07_proc.png)
+
 
 ```text
 $ grep -c processor /proc/cpuinfo
-8
+6
 $ head -3 /proc/meminfo
-MemTotal:        8025700 kB
-MemFree:         1499908 kB
-MemAvailable:    3892820 kB
+MemTotal:        5360956 kB
+MemFree:          817360 kB
+MemAvailable:    2687300 kB
 ```
 
-There are 8 visible logical CPUs (not necessarily 8 physical cores). `MemTotal` is 8,025,700 KiB, about 7.65 GiB. In this container, these `/proc` readings describe the Linux VM's visible resources; CPU quotas and memory cgroup limits, if set, are separate from these values. `MemAvailable` estimates memory usable without swapping, including reclaimable cache, while `MemFree` is completely unused memory.
 
-### 4. Which program /proc/self/status describes
+There are **6 visible logical CPUs**; this command does not establish a count of physical cores in the host computer. MemTotal is **5,360,956 KiB**, about **5.11 GiB**, as visible to this Ubuntu VM. MemAvailable estimates readily usable memory including reclaimable cache, while MemFree counts completely unused memory.
 
-```text
-$ head -5 /proc/self/status
-Name:   head
-Umask:  0022
-State:  R (running)
-Tgid:   8764
-Ngid:   0
-$ ls -l /proc/self/fd
-[excerpt]
-0 -> /dev/null
-1 -> pipe:[29578117]
-2 -> pipe:[29578118]
-3 -> /proc/8761/fd
-```
+### 4. Which program appears in /proc/self/status, and why?
 
-The name is `head`: `/proc/self` resolves for the process that opens it, which is `head`, rather than the shell that launched the command. In the next command, `self` refers to `ls`, so descriptor 3 is its own open directory descriptor. Standard output/error point to capture pipes because this session was recorded. These are live kernel views, not ordinary on-disk copies of process data.
+The Name field was **head**. `/proc/self` refers to the process accessing that path, so `head -5 /proc/self/status` reads head's own status, rather than the shell's. In `ls -l /proc/self/fd`, self instead denotes ls, and the extra directory descriptor belongs to that process's listing operation. These files expose live kernel information.
 
 ## Stretch A - Magic numbers
 
-```text
-$ gzip -c /etc/passwd > notes.txt
-$ file notes.txt
-notes.txt: gzip compressed data, was "passwd", [...] from Unix [...]
-$ xxd notes.txt | head -1
-00000000: 1f8b 0808 492a db6a 0003 7061 7373 7764  ....I*.j..passwd
-```
 
-The leading bytes `1f 8b` identify gzip, and `08` is its compression method (deflate). `file` examines the content signature, so the misleading `.txt` extension does not make the compressed stream plain text. Later header bytes contain flags, timestamps and the original name; they can change between runs.
+![Gzip identification by header bytes and a file that remains open after unlink.](../report/img/05_08_bonus.png)
 
-## Stretch C - Unlink a file that is still open
 
-```text
-$ echo retained-data > bigfile
-$ exec 3< bigfile
-$ rm bigfile
-$ ls -l /proc/$$/fd/3
-lr-x------ 1 student student 64 Oct 23 09:38 /proc/8770/fd/3 -> /tmp/os-lab5.18dfip/bigfile (deleted)
-$ cat <&3
-retained-data
-$ exec 3<&-
-```
+`gzip -c /etc/passwd > notes.txt` produced a gzip stream despite the `.txt` extension. `file notes.txt` recognized gzip data; xxd began with `1f8b 0808`. Bytes **1f 8b** are the gzip signature, and **08** identifies the deflate compression method. File identification uses content rather than the filename extension.
 
-The directory entry has disappeared but descriptor 3 still holds the inode open, as the `(deleted)` suffix indicates. Data remains readable through that descriptor. With no remaining hard links or other open references, closing descriptor 3 permits the filesystem to reclaim the storage. This is the same name-versus-object distinction seen in the hard-link experiment.
+## Stretch C - Delete a file that is still open
+
+The commands opened `bigfile` on descriptor 3, removed its name, and inspected `/proc/$$/fd/3`. The link ended in **bigfile (deleted)**. `cat <&3` still printed `retained-data`, confirming that the open descriptor retained access after unlink. `exec 3<&-` closed the final reference; with no hard links remaining, storage could then be reclaimed.
 
 ## Submission checklist
 
-The required deliverable is this `report.md`, containing all Observe answers and supporting output. `terminal-output.txt` records the complete run, and `collect.sh` reproduces the experiments as a non-root user. The report directory provides the equivalent LaTeX report and compiled PDF. The block-node visibility limitation is documented in Part 1 rather than represented as a fabricated observation.
+This `report.md` contains all Observe answers and both stretch experiments. `terminal-output.txt` preserves the recorded Ubuntu output. `collect.sh` repeats the filesystem experiments as an ordinary user in a fresh temporary directory. The report directory contains the LaTeX report, actual terminal screenshots and compiled PDF.

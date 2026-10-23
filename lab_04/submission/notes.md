@@ -1,21 +1,20 @@
 # Lab 04 - The xv6 Shell from the Outside
 
-## Environment and evidence
+## Environment
 
-The C programs were built and executed on 23 October 2026. Linux tests used Bash on Debian GNU/Linux, ARM64, as the non-root user `student`. xv6 was compiled with the RISC-V GNU toolchain and booted in QEMU, with one emulated CPU, from MIT xv6-riscv commit `f780d7850765d74cbdcd1fff4b822d8829f7c9bd`. A combined test image contained the lab 04, 06 and 08 programs. Each submitted Makefile was also checked independently. Inodes, PIDs, file sizes and listings depend on the image and run.
+All experiments were performed on 23 October 2026 inside **Ubuntu 26.04.1 LTS (ARM64)** running in VirtualBox as user `misa` on `UbuntuVM`. The Linux kernel is `7.0.0-38-generic`. The installed xv6 checkout is `~/xv6-riscv`, commit `06aad25c735fd3159bdfae5680be4eab7b1668b2`. GCC and the RISC-V compiler are version 15.2.0; QEMU is version 10.2.1. xv6 is booted from this Ubuntu with `make qemu CPUS=1`.
 
-The terminal blocks below are recorded output, with trailing prompts removed and long listings shortened only where explicitly marked. `terminal-xv6.txt` and `terminal-linux.txt` contain the complete captured sessions. Interactive history/completion behavior is explained separately; automated tests did not simulate those keypresses.
+The figures are screenshots of the Ubuntu terminal during execution. Complete command output is provided in `terminal-output.txt`; build logs are in `build-output.txt` for the xv6 labs. PIDs, inode numbers and free-space values below refer to these recorded runs.
 
-## Part 1 - Fix sleep for the current xv6
+![Ubuntu environment, user, compiler, QEMU and installed xv6 revision.](../report/img/04_01_environment.png)
 
-`user/user.h` declares `int pause(int);`. The submitted `user/sleep.c` therefore calls `pause(atoi(argv[1]))`. The command name remains `sleep`; it is the system-call name that changed. The number supplied is in timer ticks, not seconds. The program requires exactly one argument and uses status 1 for a usage error.
 
-Build from the xv6 root after copying the submission overlay:
+## Part 1 - Sleep on the installed xv6
 
-```sh
-grep -n 'pause\|sleep' user/user.h
-make qemu
-```
+`user/user.h` declares `pause(int)`, so `user/sleep.c` calls `pause(atoi(argv[1]))`. The command remains named `sleep`, and its argument is a number of timer ticks. Exactly one argument is required; otherwise it prints usage and exits with status 1. The Makefile has entries for both `sleep` and `args` in `UPROGS`.
+
+![The pause declaration, UPROGS entries and successful filesystem-image build.](../report/img/04_02_build.png)
+
 
 ```text
 $ sleep 20
@@ -23,85 +22,74 @@ $ sleep
 usage: sleep <ticks>
 ```
 
-The first command returned after its pause. The second printed the required diagnostic. The Makefile includes `sleep` and `args` in `UPROGS`; the new source files belong under `user/`.
+`sleep 20` returned to the shell after its pause; `sleep` without an argument printed the expected usage message. The same compiled utility is used in the subsequent xv6 experiments.
 
 ## Part 2 - Bash versus the xv6 shell
 
-The Bash comparison begins in an empty directory containing `README`, as required. The argument-expansion experiment later uses its own directory containing `a.c` and `b.c`.
+The Bash comparison was performed in a new directory containing `README`. xv6 used a freshly built image with the lab utilities. The complete comparison is:
 
-| Command or feature | Bash result | xv6 result and explanation |
+| Command or feature | Bash | xv6 |
 | --- | --- | --- |
-| `echo hello > f ; cat < f` | `hello` | `hello`; redirection works and LIST waits for the first command. |
-| `ls \| grep READ` | `README` | `README` with its type, inode and size; `ls` uses a different format. |
-| `(echo a; echo b) \| wc` | `2 2 4` | `2 2 4`; grouping and a pipeline work. |
-| `echo one ; echo two` | `one`, then `two` | Same sequence; LIST calls `wait(0)`. |
-| `echo bg &` | `bg`; an interactive Bash also displays job information | `bg`; the shell can prompt before it finishes, without a Bash job table. |
-| `ls *` | Expands the names `README` and `f` | `ls: cannot open *`; no wildcard expansion. |
-| `echo $HOME` | `/home/student` | Literal `$HOME`; no variable expansion. |
-| `echo "a b"` | `a b` | `"a b"`; quotes remain ordinary characters. |
-| `mkdir d ; cd d ; ls ..` | Enters `d` and lists `README`, `d`, `f` | `exec cd failed`; the list parser treats `cd` as an external program. |
-| Up, Tab, Ctrl+R | Interactive Readline provides history, completion and reverse search | These Bash facilities are absent; xv6's line input does not implement them. |
+| `echo hello > f ; cat < f` | Prints `hello`. | Prints `hello`; redirection and ordered lists work. |
+| `ls \| grep READ` | Prints `README`. | Prints the README row with type, inode and byte size. |
+| `(echo a; echo b) \| wc` | `2 2 4` | `2 2 4` |
+| `echo one ; echo two` | Prints `one`, then `two`. | Same order. |
+| `echo bg &` | Runs in the background and displays job/PID information. | Runs in the background without Bash's job table. |
+| `ls *` | Expands the existing names `README` and `f`. | `ls: cannot open *`; the asterisk is literal. |
+| `echo $HOME` | `/home/misa` | Literal `$HOME`. |
+| `echo "a b"` | `a b` | `"a b"`, with the quotes retained. |
+| `mkdir d ; cd d ; ls ..` | Enters `d` and lists its parent. | `exec cd failed`; the shell stays in the root directory. |
+| Up, Tab, Ctrl+R | History, completion and reverse search work. | These interactive facilities are absent. |
 
-Both shells support executable commands, redirection, pipes, lists, background execution and parenthesized grouping. Bash adds pathname and variable expansion, quote processing, PATH search, richer built-ins and interactive editing/job management. A noninteractive Bash script normally does not print the interactive job-number notification.
 
-Recorded xv6 checks:
+![Redirection, pipes, lists, background execution and literal expansion syntax in xv6.](../report/img/04_03_shell.png)
 
-```text
-$ echo hello > f ; cat < f
-hello
-$ ls | grep READ
-README         2 2 2441
-$ (echo a; echo b) | wc
-2 2 4
-$ echo one ; echo two
-one
-two
-$ ls *
-ls: cannot open *
-$ echo $HOME
-$HOME
-$ echo "a b"
-"a b"
-```
 
-### Correction to the partial report
+![The same shell comparison commands executed in Ubuntu Bash.](../report/img/04_08_bash_shell.png)
 
-The earlier explanation attributed `open f failed` to xv6 not waiting between semicolon-separated commands. That explanation is incorrect. In the inspected `user/sh.c`, the LIST branch forks the left command, calls `wait(0)`, then runs the right command. The new controlled run above prints `hello`. The earlier failure could have involved the previous disk state or a different local tree; the available evidence does not establish its cause.
 
-### Why ls stops working after cd
+### 1. Features common to both shells and features added by Bash
 
-A standalone `cd d` is handled in the parent shell. Once inside `d`, bare `ls` is passed to `exec` as a relative path. xv6 has no PATH search and its programs live in `/`, so use `/ls` or `../ls`.
+Both support running executables, input/output redirection, pipes, semicolon-separated lists, background commands and parenthesized grouping. Bash additionally provides wildcard and variable expansion, quote processing, PATH search, richer built-ins, command history, completion and job management.
 
-```text
-$ cd d
-$ ls
-exec ls failed
-$ /ls
-.              1 34 32
-..             1 1 1024
-$ ../ls
-.              1 34 32
-..             1 1 1024
-$ cd /
-```
+The xv6 LIST case explicitly forks the left command, calls `wait(0)`, and then runs the right command. Therefore `echo hello > f ; cat < f` is ordered and reads the newly written file; it is not a race between the two commands.
 
-The compound command `mkdir d ; cd d ; ls ..` is a separate limitation: the special `cd` handling checks only the beginning of the input line, before parsing it. Within a parsed list, `cd` is treated as a missing executable. A child's `chdir` would not update the shell parent's current directory.
+### 2. Why ls fails after cd, and how to run it
 
-### Which feature I would add
+A standalone `cd d` changes the parent shell's working directory. xv6 does not search PATH; bare `ls` is interpreted as an executable relative to the current directory, while the program is stored in `/`. Use `/ls` or `../ls` from `d`.
 
-I would most miss executable search during everyday use, because changing directory otherwise breaks short command names. A simple fallback that tries `/command` after a relative `exec` failure would be the easiest useful first extension. Full Bash PATH variables, quoting and globbing would require additional parsing and expansion logic.
+![Bare ls fails inside d, while absolute and parent-relative executable paths work.](../report/img/04_04_paths.png)
 
-## Part 3 - Who expands the arguments?
 
-`user/args.c` and `args_linux.c` print `argc` and each `argv` entry. xv6 uses its headers and `exit(0)`; Linux uses `<stdio.h>` and `return 0`. To reproduce the Linux commands with the exact executable name `args`:
+In `mkdir d ; cd d ; ls ..`, the special parent-shell check does not see `cd` at the start of the line. The list parser treats it as a separate executable, which does not exist, producing `exec cd failed`. Even a real external cd could change only its own working directory, not that of the parent shell.
 
-```sh
-gcc -Wall -Wextra -Werror -o args args_linux.c
-# Use an isolated test directory with a.c and b.c.
-# Add the directory holding args to PATH, or invoke ./args instead.
-```
+### 3. Which missing feature I would add
 
-For `args *.c "x y"`, the controlled Linux directory contains exactly `a.c` and `b.c`. Both examples have `argc = 4`, which includes `argv[0]`, but the argument contents differ:
+Executable search would matter most in daily use because changing directory otherwise breaks short program names. A simple fallback that tries `/command` after a failed relative exec would be the easiest useful first extension. Full Bash-compatible expansion and quoting require more parsing and expansion logic.
+
+### Interactive key checks
+
+In Bash, Up recalled `echo history-check`, Tab completed `cat REA` to `cat README`, and Ctrl+R found the earlier command. The screenshot captures the active reverse-search match. In xv6, Up did not recall the previous command, Tab acted as whitespace rather than filename completion, and Ctrl+R did not initiate history search.
+
+![Bash history recall, filename completion and an active Ctrl+R reverse search.](../report/img/04_10_bash_history.png)
+
+
+![The corresponding key checks in the minimal xv6 console.](../report/img/04_06_xv6_keys.png)
+
+
+## Part 3 - A program that prints argv
+
+`user/args.c` prints argc and every argument using xv6 headers and exits with `exit(0)`. `args_linux.c` uses `<stdio.h>` and returns 0. The Linux program was compiled with `gcc -Wall -Wextra -Werror -o args args_linux.c`. A separate Bash directory contained exactly `a.c` and `b.c`; the directory holding `args` was added to PATH.
+
+![All four argument-vector experiments in the xv6 shell.](../report/img/04_05_argv_xv6.png)
+
+
+![The same argument-vector experiments in Ubuntu Bash.](../report/img/04_09_argv_linux.png)
+
+
+### 1. Outputs for args *.c "x y"
+
+Ubuntu Bash:
 
 ```text
 $ args *.c "x y"
@@ -112,6 +100,7 @@ argv[2] = [b.c]
 argv[3] = [x y]
 ```
 
+xv6:
 
 ```text
 $ args *.c "x y"
@@ -122,112 +111,44 @@ argv[2] = ["x]
 argv[3] = [y"]
 ```
 
-Bash supplies three user arguments: `a.c`, `b.c`, and the single string `x y`. xv6 supplies the literal `*.c` and two strings containing the double-quote characters: `"x` and `y"`. Equal argument counts here are a coincidence; a different number of matching C files changes Bash's count.
 
-The shell expands the wildcard and removes syntactic quotes before calling exec. Neither the kernel nor the argument-printing program performs those expansions. xv6's kernel simply receives the argv strings constructed by its shell.
+Both have argc 4, including argv[0]. Bash passes three user arguments: `a.c`, `b.c`, and the single string `x y`. xv6 passes the literal `*.c` and the two strings `"x` and `y"`. Equal counts are coincidental: changing the number of matching C files changes Bash's argc.
 
-### Repeated spaces
+### 2. Who expands the wildcard and removes quotes?
 
-```text
-$ args one   two  three
-argc = 4
-argv[0] = [args]
-argv[1] = [one]
-argv[2] = [two]
-argv[3] = [three]
-```
+The shell performs both transformations before exec. The kernel accepts an executable pathname and an already constructed argument vector; the argument-printing program only displays what it receives. Bash also replaces `$HOME` with `/home/misa` and turns `'single quoted'` into one argument without the quote characters. xv6 passes `$HOME` literally and splits the quoted phrase into two strings retaining the quote characters.
 
+### 3. What happened to repeated spaces?
 
-```text
-$ args one   two  three
-argc = 4
-argv[0] = [args]
-argv[1] = [one]
-argv[2] = [two]
-argv[3] = [three]
-```
+For `args one   two  three`, both systems report argc 4 and arguments `one`, `two`, `three`. Runs of unquoted whitespace separate words and do not create empty arguments. Bash can preserve spaces using quotes; the xv6 tokenizer does not implement that quoting rule.
 
-Both shells use runs of unquoted whitespace as separators, so the extra spaces produce no empty arguments. Bash can preserve spaces inside quotes, while the xv6 tokenizer does not recognize quoting.
+## Part 4 - Read user/sh.c
 
-### Variables and single quotes
+The installed source has 499 lines. Its five command kinds and execution cases were inspected directly in Ubuntu:
 
-```text
-$ args $HOME
-argc = 2
-argv[0] = [args]
-argv[1] = [/home/student]
-$ args 'single quoted'
-argc = 2
-argv[0] = [args]
-argv[1] = [single quoted]
-```
+![Source inspection: command types, dispatch cases, LIST ordering and parent-shell cd handling.](../report/img/04_07_shell_source.png)
 
 
-```text
-$ args $HOME
-argc = 2
-argv[0] = [args]
-argv[1] = [$HOME]
-$ args 'single quoted'
-argc = 3
-argv[0] = [args]
-argv[1] = ['single]
-argv[2] = [quoted']
-```
+### 1. Five command kinds and their syntax
 
-Bash substitutes HOME and treats a single-quoted string as one literal argument with the quotes removed. xv6 passes `$HOME` literally and splits the single-quoted phrase at its space.
-
-## Part 4 - Read the shell
-
-The commands below refer to the pinned source checkout. Its `user/sh.c` has 499 lines. The values and line numbers are from that checkout; other revisions may differ.
-
-```text
-$ wc -l user/sh.c
-499 user/sh.c
-$ grep -n '#define' user/sh.c
-8:#define EXEC  1
-9:#define REDIR 2
-10:#define PIPE  3
-11:#define LIST  4
-12:#define BACK  5
-14:#define MAXARGS 10
-$ grep -n 'case ' user/sh.c
-75:  case EXEC:
-83:  case REDIR:
-93:  case LIST:
-101:  case PIPE:
-125:  case BACK:
-[additional tokenizer/parser cases omitted]
-$ grep -n 'cd' user/sh.c | head
-170:        fprintf(2, "cannot cd %s\n", cmd + 3);
-```
-
-### Five command kinds and their syntax
-
-| Kind | Syntax | What the shell does |
+| Kind | Syntax | Execution |
 | --- | --- | --- |
-| EXEC | A command name and its arguments | Calls `exec(argv[0], argv)`. |
-| REDIR | `<`, `>`, `>>` | Closes the selected descriptor, opens a file and runs its child command. |
-| PIPE | `\|` | Creates a pipe and two child processes, connects stdout to stdin, waits for both. |
-| LIST | `;` | Runs the left command, waits, then runs the right command. |
-| BACK | `&` | Forks the command and allows the supervising shell to continue. |
+| EXEC | A program name and arguments | `exec(argv[0], argv)` replaces the child image. |
+| REDIR | `<`, `>`, `>>` | Redirects a descriptor before executing the nested command. |
+| PIPE | `\|` | Connects two children through a pipe and waits for both. |
+| LIST | `;` | Waits for the left command before running the right one. |
+| BACK | `&` | Forks a command without waiting for its completion in that branch. |
 
-Parentheses group a parsed command; they are not a sixth command kind. In this xv6 version, `>>` opens without truncation but does not implement a true O_APPEND seek-to-end operation; the required experiment uses `>`.
+Parentheses group commands rather than defining a sixth kind. In this source, the execution cases begin at lines 75, 83, 93, 101 and 125 respectively.
 
-### Where cd is handled
+### 2. Where cd is handled and why
 
-`main()` checks `cmd[0]`, `cmd[1]` and `cmd[2]` for `cd ` at line 166 and calls `chdir(cmd + 3)` at line 169, before forking a command. This must happen in the shell parent because the working directory is per process.
+In `main`, line 166 checks for a line beginning with `cd ` and line 169 calls `chdir(cmd + 3)` before the shell forks a command. The shell itself must make the call because the current working directory is a per-process property.
 
-### Searching for expansion
+### 3. Why there is no wildcard or variable expansion
 
-```sh
-grep -nF '*' user/sh.c
-grep -nF '$' user/sh.c
-sed -n '270,320p' user/sh.c
-```
-
-A literal search for `*` finds pointer declarations and dereferences, not pathname-expansion code. `$` occurs in the prompt string. The tokenizer treats words as sequences bounded by whitespace and the syntax symbols `<|>&;()`. There is no stage that resolves wildcards, substitutes environment variables or strips quotes. This explains the literal `*`, `$HOME`, and quote characters in Parts 2 and 3.
+Literal searches for `*` and `$` were run on `user/sh.c`. Asterisks occur in pointer declarations and dereferences; `$` occurs in the prompt. No expansion routine resolves filenames or environment variables. The tokenizer splits words using whitespace and syntax symbols such as `<`, `>`, `|`, `&`, `;` and parentheses. This explains the literal asterisk, variable name and quote characters observed above.
 
 ## Submission checklist
 
-Required: `user/sleep.c`, `user/args.c`, `args_linux.c`, the complete xv6 `Makefile`, and this `notes.md`. `README.md` gives overlay instructions. Terminal transcripts support the observations; the separate report directory contains the LaTeX report and compiled PDF.
+`user/sleep.c`, `user/args.c`, `args_linux.c`, the complete xv6 `Makefile`, and this `notes.md` are included. The terminal transcripts and build output are from UbuntuVM. The report directory contains the LaTeX sources, screenshots and compiled PDF.

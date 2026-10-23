@@ -1,143 +1,112 @@
 % Terminal records and all Observe answers.
-\section{Environment and evidence}
+\section{Environment}
 
-Built and tested on 23 October 2026 in Debian GNU/Linux, ARM64, as non-root user \texttt{student}. The Makefile builds with C11, \texttt{-Wall -Wextra -Werror}. The terminal blocks below come from actual runs. PIDs, dates, file listings and directory counts vary across machines. Complete captured output is in \texttt{terminal-output.txt}. The programs were tested in a temporary Linux container; they can also be compiled with the individual gcc commands from the handout.
-
-\begin{lstlisting}[style=terminal]
-make
-# Or, for example:
-gcc -Wall -Wextra -o run run.c
-\end{lstlisting}
+The programs were compiled and executed inside Ubuntu 26.04.1 LTS (ARM64) in VirtualBox as non-root user \texttt{misa} on 23 October 2026. The working directory was \texttt{\textasciitilde{}/\allowbreak{}os-labs-04-08-20261023/\allowbreak{}lab07}. GCC 15.2.0 compiled all seven programs with C11, \texttt{-Wall -Wextra -Werror -O2}. Screenshots and \texttt{terminal-output.txt} record the actual runs.
 
 \section{Part 1 - fork, exec and wait}
 
-\texttt{run.c} preserves the supplied lab program: the parent prints and flushes its PID, forks, the child prints its PID and parent PID, then uses \texttt{execlp} to become \texttt{ls -l}. The parent waits with \texttt{waitpid} and decodes the child's termination status. The explicit flush before fork prevents a buffered parent message from being duplicated when stdout is captured.
+\texttt{run.c} follows the supplied program: the parent prints and flushes its PID, forks, and waits for its child; the child prints its own PID and parent PID and uses execlp to become ls -l. Flushing before fork prevents buffered parent text from being duplicated when output is redirected. The date and nonexistent-program changes are kept as separate sources \texttt{run\_date.c} and \texttt{run\_missing.c} so each required case remains runnable.
 
-The two required one-line variants are kept as separate source files, \texttt{run\_date.c} and \texttt{run\_missing.c}, so all three behaviors remain reproducible without editing the final working \texttt{run.c}.
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth,height=0.74\textheight,keepaspectratio]{img/07_01_build_run.png}
+\caption{All Linux programs compile in Ubuntu, and run creates a child that executes ls.}
+\end{figure}
 
-Actual \texttt{run} output, with the directory listing shortened:
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth,height=0.74\textheight,keepaspectratio]{img/07_02_exec_variants.png}
+\caption{Successful date execution and failed exec of a nonexistent program.}
+\end{figure}
 
-\begin{lstlisting}[style=terminal]
-$ ./run
-parent: my PID is 8781
-child:  my PID is 8782, my parent is 8781
-total 536
-[directory entries omitted]
-parent: child 8782 ended with status 0
-\end{lstlisting}
+\subsection{1. Why perror runs only for nosuchprog}
 
-\begin{lstlisting}[style=terminal]
-$ ./run_date
-parent: my PID is 8783
-child:  my PID is 8784, my parent is 8783
-Fri Oct 23 09:38:56 UTC 2026
-parent: child 8784 ended with status 0
-$ ./run_missing
-parent: my PID is 8785
-child:  my PID is 8786, my parent is 8785
-exec: No such file or directory
-parent: child 8786 ended with status 127
-\end{lstlisting}
+Successful execlp replaces the child's process image and does not return to the following line. The same PID now runs ls or date. On failure it returns -1 and sets errno, so \texttt{perror("exec")} executes and prints \texttt{No such file or directory}. The supplied failure branch then calls \texttt{exit(127)}.
 
-\subsection{1. Why perror runs only after a failed exec}
+\subsection{2. Whose PID appears as my parent?}
 
-A successful \texttt{execlp} replaces the child's process image and never returns to the following line. The same PID now runs the new program. If exec fails, it returns -1 and sets errno; only then does \texttt{perror("exec")} execute. The missing-program variant deliberately exits with 127 after printing its error.
+In the recorded run, the parent PID was \textbf{37341}, the child PID was \textbf{37342}, and the child printed \textbf{37341} as its parent. getpid returns the caller's own PID; getppid returns its current parent's PID. The parent stays alive and waits during this test.
 
-\subsection{2. Whose PID is printed as my parent}
+\subsection{3. Statuses for ls and nosuchprog}
 
-The child prints 8781 as its parent in the recorded \texttt{run} experiment, the PID printed by the original parent process. \texttt{getpid()} returns the calling process's own ID; \texttt{getppid()} returns its current parent's ID. Here the parent stays alive and waits, so the child is not reparented during this observation.
-
-\subsection{3. Exit statuses}
-
-The parent reports 0 for successful \texttt{ls} and \texttt{date}, and 127 for \texttt{nosuchprog}. These are the child's exit statuses. The supplied parent program itself returns 0 after reporting them, including the missing-program experiment; this differs from the child status it prints. Linux waitpid returns an encoded wait status, so \texttt{WEXITSTATUS} extracts the exit value when the child exited normally. A general shell would also handle signal termination using \texttt{WIFEXITED}/\texttt{WIFSIGNALED}.
+The parent reported child status \textbf{0} for ls/date and \textbf{127} for the nonexistent program. Linux waitpid returns an encoded wait status, so WEXITSTATUS extracts the normal exit value. The supplied parent itself returns 0 after printing the child's result, including the failure experiment. A general-purpose shell would additionally check normal versus signal termination before interpreting the status.
 
 \section{Part 2 - A zombie, on purpose}
 
-\texttt{zombie.c} is the \texttt{ls} version of \texttt{run.c} with \texttt{sleep(20)} immediately before \texttt{waitpid}. The test started it in the background, inspected its child after two seconds, then waited for the parent to finish.
+\texttt{zombie.c} is the ls version with \texttt{sleep(20)} immediately before waitpid. It was started in the background; after two seconds the process table showed the parent sleeping and the exited child unreaped.
 
-\begin{lstlisting}[style=terminal]
-$ ps -o pid,ppid,stat,cmd -p 8803,8804
-PID  PPID STAT CMD
- 8803  8776 S    ./zombie
- 8804  8803 Z    [ls] <defunct>
-$ ps -o pid,ppid,stat,cmd -p 8804
-PID  PPID STAT CMD
-\end{lstlisting}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth,height=0.74\textheight,keepaspectratio]{img/07_03_zombie.png}
+\caption{The exited ls child is visible with state Z while its parent sleeps.}
+\end{figure}
 
-\subsection{1. The Z state}
+\subsection{1. The STAT letter and its meaning}
 
-The child's STAT letter is \texttt{Z}, meaning zombie: \texttt{ls} has exited, but the kernel retains its PID and termination status until its parent reaps it. It is not running useful code or sleeping to finish its work. The parent's \texttt{S} means sleeping.
+The ls child PID \textbf{37876} had state \textbf{Z}, and its command appeared as \texttt{[ls] <defunct>}. A zombie has finished executing, but the kernel retains its exit information and process-table identity until the parent consumes them. Parent PID \textbf{37875} had state S because it was sleeping.
 
-\subsection{2. What removes the zombie}
+\subsection{2. What makes the zombie disappear}
 
-After the parent wakes from its 20-second sleep, \texttt{waitpid(pid,\allowbreak{} \&status,\allowbreak{} 0)} consumes the child's recorded exit information and removes its process-table entry. The second \texttt{ps} has only the header for that PID. The elapsed sleep alone does not reap a child; the wait call does.
+After the sleep ended, \texttt{waitpid(pid,\allowbreak{} \&status,\allowbreak{} 0)} reaped the child. A later ps query for 37876 printed only the header, with no process row. Waiting for time to pass does not itself remove a zombie; the parent's wait call does.
 
-\section{Part 3 - Output redirection}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth,height=0.74\textheight,keepaspectratio]{img/07_04_reaped.png}
+\caption{After waitpid, the previous zombie PID no longer has a process-table entry.}
+\end{figure}
 
-\texttt{redirect.c} forks, closes descriptor 1 in its child, opens \texttt{out.txt} with \texttt{O\_WRONLY | O\_CREAT | O\_TRUNC} and mode 0644, then execs \texttt{ls -l}. The parent retains its terminal/capture stdout and waits. The program checks fork/open/exec/wait errors and reports the child result.
+\section{Part 3 - Redirection}
 
-\begin{lstlisting}[style=terminal]
-$ ./redirect
-open gave descriptor 1
-done: the listing is in out.txt
-\end{lstlisting}
+The child in \texttt{redirect.c} closes descriptor 1, opens out.txt with \texttt{O\_WRONLY | O\_CREAT | O\_TRUNC} and mode 0644, then executes ls -l. The parent waits and prints its completion message. The implementation checks fork/open/exec/wait errors.
 
-\texttt{out.txt} was also checked to begin with the \texttt{total} header of a long directory listing. It is generated when the program runs, rather than submitted as a machine-specific listing.
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth,height=0.74\textheight,keepaspectratio]{img/07_05_redirection.png}
+\caption{Descriptor 1 is reused by open and the unchanged ls listing appears in out.txt.}
+\end{figure}
 
-\subsection{1. Why open returned 1}
+\subsection{1. Which descriptor open returned, and why}
 
-\texttt{open} chooses the lowest unused descriptor. Standard descriptors 0, 1 and 2 were initially open; closing 1 made it the first free slot. The recorded diagnostic confirms that open returned 1. This experiment relies on the normal standard-descriptor setup.
+The diagnostic reported \textbf{1}. Standard descriptors 0, 1 and 2 were initially open; closing 1 made it the lowest available slot. open chooses that lowest free descriptor. The mode 0644 requested for out.txt already excludes group write, so umask 0002 does not add it back.
 
-\subsection{2. Why unchanged ls writes to the file}
+\subsection{2. Why ls no longer prints its listing to the screen}
 
-\texttt{ls} still writes to descriptor 1. The forked child's descriptor table was modified before exec, and descriptors remain open across exec unless marked close-on-exec. Consequently \texttt{ls} inherits stdout pointing at \texttt{out.txt}. The diagnostic is sent to descriptor 2 and remains visible; the parent's final message also remains visible because descriptor changes were made only in the child.
+ls still writes to descriptor 1. The child changed what that descriptor refers to before exec; the descriptor remains open across exec and is inherited by the new image. It now points to out.txt. The diagnostic is written to stderr (2), and the parent's own stdout remains unchanged, so both remain visible.
 
-\subsection{3. Redirecting errors}
+\subsection{3. Redirecting errors instead}
 
-For \texttt{2> err.txt}, close descriptor 2 before opening the error file, leaving descriptors 0 and 1 open so the file gets 2. A general implementation can use \texttt{dup2(fd,\allowbreak{} STDERR\_FILENO)} to select the target explicitly. Descriptor 2 is standard error; descriptor 1 is standard output.
+For \texttt{2> err.txt}, close descriptor \textbf{2} before opening the destination, while leaving 0 and 1 open. A more general implementation can use dup2 to choose descriptor 2 explicitly. Descriptor 1 is stdout and descriptor 2 is stderr.
 
 \section{Part 4 - A pipe}
 
-\texttt{pipeline.c} creates a pipe and forks two children. The producer closes stdout and duplicates the write end onto descriptor 1, then execs \texttt{ls /\allowbreak{}etc}. The consumer closes stdin and duplicates the read end onto descriptor 0, then execs \texttt{wc -l}. Each child closes both original pipe descriptors after duplication. The parent closes both ends and waits for both specific children.
+\texttt{pipeline.c} creates a pipe and two children. In the producer, close plus dup connects descriptor 1 to the pipe's write end before exec of ls /etc. In the consumer it connects descriptor 0 to the read end before exec of wc -l. Each child closes the original pipe descriptors after duplication; the parent closes both ends and waits for both children.
 
-\begin{lstlisting}[style=terminal]
-$ ./pipeline
-112
-$ ls /etc | wc -l
-112
-\end{lstlisting}
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth,height=0.74\textheight,keepaspectratio]{img/07_06_pipelines.png}
+\caption{Both the two-stage and three-stage programs match their Ubuntu shell pipelines.}
+\end{figure}
 
-\subsection{1. Comparison with the real shell}
+\subsection{1. Compare with the real shell}
 
-Both counts are 112 in the recorded environment. This equality, rather than the particular count, verifies the connection. \texttt{ls} writes one filename per line when its output is a pipe, and \texttt{wc -l} counts those lines.
+Both returned \textbf{237}. The important property is equality for the same directory at the same time. ls uses one filename per line when writing into a pipe, and wc -l counts those lines.
 
-\subsection{2. Which child hangs after leaving a writer open}
+\subsection{2. Which child stays alive after leaving the writer open}
 
-The experiment commented out only the parent's final \texttt{close(p[1])} in a temporary copy, compiled it and inspected it. The submitted \texttt{pipeline.c} remains the working version. The temporary program was still running after one second:
+Only a temporary copy, \texttt{pipeline\_broken.c}, omitted the parent's final close of the write end. The submitted pipeline.c remains the correct version. In the process table, broken parent PID \textbf{44821} and child \textbf{44823}, running \texttt{wc -l}, were still sleeping; ls had already exited.
 
-\begin{lstlisting}[style=terminal]
-$ ./broken (parent write end left open)
-PID  PPID STAT CMD
- 8812  8776 Ss   /tmp/tmpeiiz8bal/broken
- 8814  8812 S    wc -l
-Still running after 1 second; stopped by test harness.
-\end{lstlisting}
-
-\texttt{ls} had already exited; \texttt{wc -l} was still sleeping. The test stopped the temporary process group after the observation, equivalent to interrupting the foreground pipeline with Ctrl-C.
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth,height=0.74\textheight,keepaspectratio]{img/07_07_pipe_eof.png}
+\caption{Leaving the parent writer open keeps wc waiting; the temporary process group is then stopped.}
+\end{figure}
 
 \subsection{3. What wc is waiting for}
 
-\texttt{wc} is waiting for EOF: after buffered bytes are consumed, read returns EOF only when every descriptor referring to the pipe's write end is closed. The parent's unused open writer keeps that condition false, while the parent waits for \texttt{wc} to exit. Pipe end closure is part of the communication protocol, not just resource tidiness.
+wc is waiting for EOF. After buffered bytes have been consumed, a pipe read returns EOF only when every descriptor referring to its write end is closed. The parent's unused open writer prevents EOF while the parent waits for wc. The temporary background process group was terminated after this observation, and no hanging experiment was left running.
 
 \section{Optional - Three stages}
 
-\texttt{pipeline3.c} implements \texttt{ls /\allowbreak{}usr/\allowbreak{}bin | grep x | wc -l} using two pipes and three children. The first child redirects stdout, the middle child redirects both stdin and stdout, and the last redirects stdin. Every child and the parent close all four original pipe descriptors after the required duplicates.
+\texttt{pipeline3.c} implements \texttt{ls /\allowbreak{}usr/\allowbreak{}bin | grep x | wc -l} with two pipes and three children. The middle child redirects both stdin and stdout; all children and the parent close all four original pipe ends after the needed duplicates. The parent waits for every child and reports failure if any stage fails.
 
-\begin{lstlisting}[style=terminal]
-$ ./pipeline3
-106
-$ ls /usr/bin | grep x | wc -l
-106
-\end{lstlisting}
-
-Both methods returned 106. The parent waits for every created child and reports a nonzero result if one fails. The optional source is included alongside the required programs.
+Both returned \textbf{231} in this Ubuntu installation. The three-stage comparison is shown alongside the two-stage result above.

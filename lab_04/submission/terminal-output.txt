@@ -1,0 +1,474 @@
+UbuntuVM - xv6 and Bash - 23 October 2026
+
+[linux] cd /home/misa/os-labs-04-08-20261023/lab04
+cd /home/misa/os-labs-04-08-20261023/lab04
+misa@UbuntuVM:lab04$
+[linux] whoami; hostname; pwd
+whoami; hostname; pwd
+misa
+UbuntuVM
+/home/misa/os-labs-04-08-20261023/lab04
+misa@UbuntuVM:lab04$
+[linux] cat /etc/os-release | head -5
+cat /etc/os-release | head -5
+PRETTY_NAME="Ubuntu 26.04.1 LTS"
+NAME="Ubuntu"
+VERSION_ID="26.04"
+VERSION="26.04.1 LTS (Resolute Raccoon)"
+VERSION_CODENAME=resolute
+misa@UbuntuVM:lab04$
+[linux] gcc --version | head -1
+gcc --version | head -1
+gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+misa@UbuntuVM:lab04$
+[linux] qemu-system-riscv64 --version | head -1
+qemu-system-riscv64 --version | head -1
+QEMU emulator version 10.2.1 (Debian 1:10.2.1+ds-1ubuntu3.2)
+misa@UbuntuVM:lab04$
+[linux] git -C ~/xv6-riscv rev-parse HEAD
+git -C ~/xv6-riscv rev-parse HEAD
+06aad25c735fd3159bdfae5680be4eab7b1668b2
+misa@UbuntuVM:lab04$
+[linux] cd ~/xv6-riscv
+cd ~/xv6-riscv
+misa@UbuntuVM:xv6-riscv$
+[linux] make clean > /home/misa/os-labs-04-08-20261023/evidence/lab04-build.txt 2>&1
+make clean > /home/misa/os-labs-04-08-20261023/evidence/lab04-build.txt 2>&1
+misa@UbuntuVM:xv6-riscv$
+[linux] make -j4 kernel/kernel fs.img >> /home/misa/os-labs-04-08-20261023/evidence/lab04-build.txt 2>&1
+make -j4 kernel/kernel fs.img >> /home/misa/os-labs-04-08-20261023/evidence/lab04-builld.txt 2>&1
+misa@UbuntuVM:xv6-riscv$
+[linux] tail -4 /home/misa/os-labs-04-08-20261023/evidence/lab04-build.txt
+tail -4 /home/misa/os-labs-04-08-20261023/evidence/lab04-build.txt
+mkfs/mkfs fs.img README user/_cat user/_echo user/_forktest user/_grep user/_init user/_kill user/_ln user/_ls user/_mkdir user/_rm user/_sh user/_stressfs user/_usertests user/_grind user/_wc user/_zombie user/_logstress user/_forphan user/_dorphan user/_sync user/_sleep user/_args
+nmeta 47 (boot, super, log blocks 31, inode blocks 13, bitmap blocks 1) blocks 1953 total 2000
+balloc: first 1055 blocks have been allocated
+balloc: write bitmap block at sector 46
+misa@UbuntuVM:xv6-riscv$
+[linux] grep -n "pause\|sleep" user/user.h
+grep -n "pause\|sleep" user/user.h
+25:int pause(int);
+misa@UbuntuVM:xv6-riscv$
+[linux] grep -n "_sleep\|_args" Makefile
+grep -n "_sleep\|_args" Makefile
+153:	$U/_sleep\
+154:	$U/_args\
+misa@UbuntuVM:xv6-riscv$
+[linux] grep nmeta /home/misa/os-labs-04-08-20261023/evidence/lab04-build.txt
+grep nmeta /home/misa/os-labs-04-08-20261023/evidence/lab04-build.txt
+nmeta 47 (boot, super, log blocks 31, inode blocks 13, bitmap blocks 1) blocks 1953 total 2000
+misa@UbuntuVM:xv6-riscv$
+[xv6] make qemu CPUS=1
+make qemu CPUS=1
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+init: starting sh
+$
+[xv6] sleep 20
+sleep 20
+$
+[xv6] sleep
+sleep
+usage: sleep <ticks>
+$
+[xv6] echo hello > f ; cat < f
+echo hello > f ; cat < f
+hello
+$
+[xv6] ls | grep READ
+ls | grep READ
+README         2 2 2441
+$
+[xv6] (echo a; echo b) | wc
+(echo a; echo b) | wc
+2 2 4
+$
+[xv6] echo one ; echo two
+echo one ; echo two
+one
+two
+$
+[xv6] echo bg &
+echo bg &
+bg
+$
+[xv6] ls *
+ls *
+ls: cannot open *
+$
+[xv6] echo $HOME
+echo $HOME
+$HOME
+$
+[xv6] echo "a b"
+echo "a b"
+"a b"
+$
+[xv6] mkdir d ; cd d ; ls ..
+mkdir d ; cd d ; ls ..
+exec cd failed
+.              1 1 1024
+..             1 1 1024
+README         2 2 2441
+cat            2 3 36728
+echo           2 4 35592
+forktest       2 5 18136
+grep           2 6 44184
+init           2 7 35976
+kill           2 8 35512
+ln             2 9 35304
+ls             2 10 42880
+mkdir          2 11 35568
+rm             2 12 35552
+sh             2 13 58312
+stressfs       2 14 36416
+usertests      2 15 206800
+grind          2 16 51824
+wc             2 17 37728
+zombie         2 18 34848
+logstress      2 19 37560
+forphan        2 20 36352
+dorphan        2 21 35800
+sync           2 22 34944
+sleep          2 23 35280
+args           2 24 35272
+console        3 25 0
+f              2 26 6
+d              1 27 32
+$
+[xv6] cd d
+cd d
+$
+[xv6] ls
+ls
+exec ls failed
+$
+[xv6] /ls
+/ls
+.              1 27 32
+..             1 1 1024
+$
+[xv6] ../ls
+../ls
+.              1 27 32
+..             1 1 1024
+$
+[xv6] cd /
+cd /
+$
+[xv6] args one   two  three
+args one   two  three
+argc = 4
+argv[0] = [args]
+argv[1] = [one]
+argv[2] = [two]
+argv[3] = [three]
+$
+[xv6] args *.c "x y"
+args *.c "x y"
+argc = 4
+argv[0] = [args]
+argv[1] = [*.c]
+argv[2] = ["x]
+argv[3] = [y"]
+$
+[xv6] args $HOME
+args $HOME
+argc = 2
+argv[0] = [args]
+argv[1] = [$HOME]
+$
+[xv6] args 'single quoted'
+args 'single quoted'
+argc = 3
+argv[0] = [args]
+argv[1] = ['single]
+argv[2] = [quoted']
+$
+[xv6] echo history-check
+echo history-check
+history-check
+$
+[xv6] <Up then Enter>
+
+exec  failed
+$
+[xv6] <Tab in an argument>
+args REA
+argc = 2
+argv[0] = [args]
+argv[1] = [REA]
+$
+[xv6] <Ctrl-R then Enter>
+[Ctrl-R]
+exec [Ctrl-R] failed
+$
+[xv6] <Ctrl-A X>
+QEMU: Terminated
+misa@UbuntuVM:xv6-riscv$
+[linux] wc -l user/sh.c
+wc -l user/sh.c
+499 user/sh.c
+misa@UbuntuVM:xv6-riscv$
+[linux] grep -n "#define" user/sh.c
+grep -n "#define" user/sh.c
+8:#define EXEC  1
+9:#define REDIR 2
+10:#define PIPE  3
+11:#define LIST  4
+12:#define BACK  5
+14:#define MAXARGS 10
+misa@UbuntuVM:xv6-riscv$
+[linux] grep -n "case " user/sh.c | head -5
+grep -n "case " user/sh.c | head -5
+75:  case EXEC:
+83:  case REDIR:
+93:  case LIST:
+101:  case PIPE:
+125:  case BACK:
+misa@UbuntuVM:xv6-riscv$
+[linux] sed -n "93,100p" user/sh.c
+sed -n "93,100p" user/sh.c
+  case LIST:
+    lcmd = (struct listcmd *)cmd;
+    if (fork1() == 0)
+      runcmd(lcmd->left);
+    wait(0);
+    runcmd(lcmd->right);
+    break;
+
+misa@UbuntuVM:xv6-riscv$
+[linux] sed -n "166,170p" user/sh.c
+sed -n "166,170p" user/sh.c
+    if (cmd[0] == 'c' && cmd[1] == 'd' && cmd[2] == ' ') {
+      // Chdir must be called by the parent, not the child.
+      cmd[strlen(cmd) - 1] = 0; // chop \n
+      if (chdir(cmd + 3) < 0)
+        fprintf(2, "cannot cd %s\n", cmd + 3);
+misa@UbuntuVM:xv6-riscv$
+[linux] grep -nF '*' user/sh.c
+grep -nF '*' user/sh.c
+22:  char *argv[MAXARGS];
+23:  char *eargv[MAXARGS];
+28:  struct cmd *cmd;
+29:  char *file;
+30:  char *efile;
+37:  struct cmd *left;
+38:  struct cmd *right;
+43:  struct cmd *left;
+44:  struct cmd *right;
+49:  struct cmd *cmd;
+53:void panic(char *);
+54:struct cmd *parsecmd(char *);
+55:void runcmd(struct cmd *) __attribute__((noreturn));
+59:runcmd(struct cmd *cmd)
+62:  struct backcmd *bcmd;
+63:  struct execcmd *ecmd;
+64:  struct listcmd *lcmd;
+65:  struct pipecmd *pcmd;
+66:  struct redircmd *rcmd;
+76:    ecmd = (struct execcmd *)cmd;
+84:    rcmd = (struct redircmd *)cmd;
+94:    lcmd = (struct listcmd *)cmd;
+102:    pcmd = (struct pipecmd *)cmd;
+126:    bcmd = (struct backcmd *)cmd;
+135:getcmd(char *buf, int nbuf)
+161:    char *cmd = buf;
+162:    while (*cmd == ' ' || *cmd == '\t')
+164:    if (*cmd == '\n') // is a blank command
+181:panic(char *s)
+201:struct cmd *
+204:  struct execcmd *cmd;
+206:  cmd = malloc(sizeof(*cmd));
+207:  memset(cmd, 0, sizeof(*cmd));
+209:  return (struct cmd *)cmd;
+212:struct cmd *
+213:redircmd(struct cmd *subcmd, char *file, char *efile, int mode, int fd)
+215:  struct redircmd *cmd;
+217:  cmd = malloc(sizeof(*cmd));
+218:  memset(cmd, 0, sizeof(*cmd));
+225:  return (struct cmd *)cmd;
+228:struct cmd *
+229:pipecmd(struct cmd *left, struct cmd *right)
+231:  struct pipecmd *cmd;
+233:  cmd = malloc(sizeof(*cmd));
+234:  memset(cmd, 0, sizeof(*cmd));
+238:  return (struct cmd *)cmd;
+241:struct cmd *
+242:listcmd(struct cmd *left, struct cmd *right)
+244:  struct listcmd *cmd;
+246:  cmd = malloc(sizeof(*cmd));
+247:  memset(cmd, 0, sizeof(*cmd));
+251:  return (struct cmd *)cmd;
+254:struct cmd *
+255:backcmd(struct cmd *subcmd)
+257:  struct backcmd *cmd;
+259:  cmd = malloc(sizeof(*cmd));
+260:  memset(cmd, 0, sizeof(*cmd));
+263:  return (struct cmd *)cmd;
+272:gettoken(char **ps, char *es, char **q, char **eq)
+274:  char *s;
+277:  s = *ps;
+278:  while (s < es && strchr(whitespace, *s))
+281:    *q = s;
+282:  ret = *s;
+283:  switch (*s) {
+296:    if (*s == '>') {
+303:    while (s < es && !strchr(whitespace, *s) && !strchr(symbols, *s))
+308:    *eq = s;
+310:  while (s < es && strchr(whitespace, *s))
+312:  *ps = s;
+317:peek(char **ps, char *es, char *toks)
+319:  char *s;
+321:  s = *ps;
+322:  while (s < es && strchr(whitespace, *s))
+324:  *ps = s;
+325:  return *s && strchr(toks, *s);
+328:struct cmd *parseline(char **, char *);
+329:struct cmd *parsepipe(char **, char *);
+330:struct cmd *parseexec(char **, char *);
+331:struct cmd *nulterminate(struct cmd *);
+333:struct cmd *
+334:parsecmd(char *s)
+336:  char *es;
+337:  struct cmd *cmd;
+350:struct cmd *
+351:parseline(char **ps, char *es)
+353:  struct cmd *cmd;
+367:struct cmd *
+368:parsepipe(char **ps, char *es)
+370:  struct cmd *cmd;
+380:struct cmd *
+381:parseredirs(struct cmd *cmd, char **ps, char *es)
+384:  char *q, *eq;
+405:struct cmd *
+406:parseblock(char **ps, char *es)
+408:  struct cmd *cmd;
+421:struct cmd *
+422:parseexec(char **ps, char *es)
+424:  char *q, *eq;
+426:  struct execcmd *cmd;
+427:  struct cmd *ret;
+433:  cmd = (struct execcmd *)ret;
+455:struct cmd *
+456:nulterminate(struct cmd *cmd)
+459:  struct backcmd *bcmd;
+460:  struct execcmd *ecmd;
+461:  struct listcmd *lcmd;
+462:  struct pipecmd *pcmd;
+463:  struct redircmd *rcmd;
+470:    ecmd = (struct execcmd *)cmd;
+472:      *ecmd->eargv[i] = 0;
+476:    rcmd = (struct redircmd *)cmd;
+478:    *rcmd->efile = 0;
+482:    pcmd = (struct pipecmd *)cmd;
+488:    lcmd = (struct listcmd *)cmd;
+494:    bcmd = (struct backcmd *)cmd;
+misa@UbuntuVM:xv6-riscv$
+[linux] grep -nF '$' user/sh.c
+grep -nF '$' user/sh.c
+137:  write(2, "$ ", 2);
+misa@UbuntuVM:xv6-riscv$
+[linux] cd /home/misa/os-labs-04-08-20261023/lab04
+cd /home/misa/os-labs-04-08-20261023/lab04
+misa@UbuntuVM:lab04$
+[linux] gcc -Wall -Wextra -Werror -o args args_linux.c
+gcc -Wall -Wextra -Werror -o args args_linux.c
+misa@UbuntuVM:lab04$
+[linux] mkdir compare argv; touch compare/README argv/a.c argv/b.c
+mkdir compare argv; touch compare/README argv/a.c argv/b.c
+misa@UbuntuVM:lab04$
+[linux] cd /home/misa/os-labs-04-08-20261023/lab04/compare
+cd /home/misa/os-labs-04-08-20261023/lab04/compare
+misa@UbuntuVM:compare$
+[linux] echo hello > f ; cat < f
+echo hello > f ; cat < f
+hello
+misa@UbuntuVM:compare$
+[linux] ls | grep READ
+ls | grep READ
+README
+misa@UbuntuVM:compare$
+[linux] (echo a; echo b) | wc
+(echo a; echo b) | wc
+      2       2       4
+misa@UbuntuVM:compare$
+[linux] echo one ; echo two
+echo one ; echo two
+one
+two
+misa@UbuntuVM:compare$
+[linux] echo bg &
+echo bg &
+[1] 9707
+misa@UbuntuVM:compare$
+[linux] wait
+bg
+wait
+misa@UbuntuVM:compare$
+[linux] ls *
+ls *
+README	f
+misa@UbuntuVM:compare$
+[linux] echo $HOME
+echo $HOME
+/home/misa
+misa@UbuntuVM:compare$
+[linux] echo "a b"
+echo "a b"
+a b
+misa@UbuntuVM:compare$
+[linux] mkdir d ; cd d ; ls ..
+mkdir d ; cd d ; ls ..
+README	d  f
+misa@UbuntuVM:d$
+[linux] cd /home/misa/os-labs-04-08-20261023/lab04/argv
+cd /home/misa/os-labs-04-08-20261023/lab04/argv
+misa@UbuntuVM:argv$
+[linux] export PATH="/home/misa/os-labs-04-08-20261023/lab04:$PATH"
+export PATH="/home/misa/os-labs-04-08-20261023/lab04:$PATH"
+misa@UbuntuVM:argv$
+[linux] args one   two  three
+args one   two  three
+argc = 4
+argv[0] = [args]
+argv[1] = [one]
+argv[2] = [two]
+argv[3] = [three]
+misa@UbuntuVM:argv$
+[linux] args *.c "x y"
+args *.c "x y"
+argc = 4
+argv[0] = [args]
+argv[1] = [a.c]
+argv[2] = [b.c]
+argv[3] = [x y]
+misa@UbuntuVM:argv$
+[linux] args $HOME
+args $HOME
+argc = 2
+argv[0] = [args]
+argv[1] = [/home/misa]
+misa@UbuntuVM:argv$
+[linux] args 'single quoted'
+args 'single quoted'
+argc = 2
+argv[0] = [args]
+argv[1] = [single quoted]
+misa@UbuntuVM:argv$
+[linux] cd /home/misa/os-labs-04-08-20261023/lab04/compare
+cd /home/misa/os-labs-04-08-20261023/lab04/compare
+misa@UbuntuVM:compare$
+[linux] echo history-check
+echo history-check
+history-check
+misa@UbuntuVM:compare$
+[linux] <Up then Enter>
+echo history-check
+history-check
+misa@UbuntuVM:compare$
+[linux] <cat REA Tab Enter>
+cat README
+misa@UbuntuVM:compare$

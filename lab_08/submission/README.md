@@ -1,29 +1,17 @@
-# Lab 08: build and run
+# Lab 08
 
-Source baseline: MIT xv6-riscv commit `f780d7850765d74cbdcd1fff4b822d8829f7c9bd` (branch `riscv`). This submission contains the complete upstream Makefile with the lab programs added to `UPROGS`, and the required sources under `user/`.
+Sources target the xv6-riscv checkout installed in UbuntuVM, commit `06aad25c735fd3159bdfae5680be4eab7b1668b2`. The complete Makefile retains earlier lab utilities and adds the programs required by this lab.
 
-From this submission directory, install the files into your existing xv6 checkout:
+Copy `user/*.c` into `~/xv6-riscv/user/` and merge the matching UPROGS entries from `Makefile` into the xv6 root Makefile. Each entry starts with a TAB and ends with a backslash. A checkout containing all earlier sources can use the supplied Makefile directly.
 
 ```sh
+cp ../../lab_04/submission/user/*.c ~/xv6-riscv/user/
+cp ../../lab_06/submission/user/*.c ~/xv6-riscv/user/
 cp user/*.c ~/xv6-riscv/user/
-```
-
-For a checkout at the recorded baseline, copy `Makefile` to the xv6 root. If your checkout has changes from previous labs, keep its Makefile and merge these entries into its existing `UPROGS` block instead:
-
-```make
-	$U/_run\
-	$U/_runls\
-	$U/_runmissing\
-	$U/_pingpong\
-	$U/_primes\
-```
-
-Each entry starts with a literal TAB; the backslash is the last character on the line. Do not build this standalone submission directory: it is an overlay for the full xv6 tree.
-
-```sh
+cp Makefile ~/xv6-riscv/Makefile
 cd ~/xv6-riscv
 make clean
-make qemu
+make qemu CPUS=1
 ```
 
-Quit QEMU with Ctrl-A followed by X. Read `notes.md` for experiments and expected interpretations. The full LaTeX report and compiled PDF are in `../report/`.
+Quit QEMU with Ctrl-A, then X. `notes.md` contains the observations, `terminal-output.txt` the recorded Ubuntu/xv6 session and `build-output.txt` the compiler output. The sibling report directory contains the LaTeX report, terminal screenshots and PDF.

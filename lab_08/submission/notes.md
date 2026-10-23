@@ -1,110 +1,96 @@
 # Lab 08 - The Same Calls, Inside Your Own OS
 
-## Environment and evidence
+## Environment
 
-Compiled and executed on 23 October 2026 with MIT xv6-riscv commit `f780d7850765d74cbdcd1fff4b822d8829f7c9bd`, the RISC-V GNU compiler and QEMU. The recorded session used one emulated CPU and a combined image of the lab 04, 06 and 08 programs. Each submitted Makefile also built independently. The terminal blocks are recorded output, and `terminal-output.txt` contains the full session. PIDs and executable listings depend on the run.
+All experiments were performed on 23 October 2026 inside **Ubuntu 26.04.1 LTS (ARM64)** running in VirtualBox as user `misa` on `UbuntuVM`. The Linux kernel is `7.0.0-38-generic`. The installed xv6 checkout is `~/xv6-riscv`, commit `06aad25c735fd3159bdfae5680be4eab7b1668b2`. GCC and the RISC-V compiler are version 15.2.0; QEMU is version 10.2.1. xv6 is booted from this Ubuntu with `make qemu CPUS=1`.
+
+The figures are screenshots of the Ubuntu terminal during execution. Complete command output is provided in `terminal-output.txt`; build logs are in `build-output.txt` for the xv6 labs. PIDs, inode numbers and free-space values below refer to these recorded runs.
+
+The xv6 image was rebuilt for this laboratory. Its Makefile retains the earlier lab utilities and adds run, runls, runmissing, pingpong and primes.
+
+![The required programs are registered in UPROGS and the xv6 image builds inside Ubuntu.](../report/img/08_01_build.png)
+
 
 ## Part 1 - run inside xv6
 
-`user/run.c` preserves the supplied lab's program. The parent prints its PID and forks. The child prints its own PID, builds a NUL-terminated array of strings, and calls `exec("echo", args)`. The parent calls `wait(&status)` and reports the child's status. The Makefile includes `run` in `UPROGS`.
+`user/run.c` follows the provided program. The parent prints its PID and forks; the child prints its own PID and calls exec with a NUL-terminated argument vector for echo. The parent waits for the child and prints the returned status. The ls variant is `user/runls.c`; the failed-exec variant is `user/runmissing.c`, leaving run as the default echo example.
+
+![Echo, ls and failed-exec variants executed in the xv6 booted from Ubuntu.](../report/img/08_02_run.png)
+
 
 ```text
 $ run
-parent: my pid is 57
-child: my pid is 58
+parent: my pid is 3
+child: my pid is 4
 hello from the child
-parent: child 58 ended with status 0
-```
-
-### The ls and missing-program variants
-
-`user/runls.c` changes the child's array to `{ "ls", 0 }` and executes `ls`. `user/runmissing.c` changes the executable pathname to `nosuchprog`, which deliberately fails. Keeping separate variants allows the default `run` program to remain exactly the echo example and lets the assistant run all cases without editing a source file.
-
-Recorded `runls` output, with its long directory listing shortened:
-
-```text
-$ runls
-parent: my pid is 59
-child: my pid is 60
-.              1 1 1024
-..             1 1 1024
-[remaining directory entries omitted]
-parent: child 60 ended with status 0
-```
-
-
-```text
+parent: child 4 ended with status 0
 $ runmissing
-parent: my pid is 61
-child: my pid is 62
+parent: my pid is 7
+child: my pid is 8
 exec failed
-parent: child 62 ended with status 1
+parent: child 8 ended with status 1
 ```
+
+
+The first run used parent PID **3** and child PID **4**, printed `hello from the child`, and reported status 0. runls used PIDs 5/6, displayed the xv6 root listing and also reported 0. The nonexistent executable used PIDs 7/8, printed `exec failed` and reported status 1.
 
 ### 1. Compare the three calls with Linux
 
 | Operation | xv6 lab 08 | Linux lab 07 |
 | --- | --- | --- |
 | Create the child | `fork()` | `fork()` |
-| Replace the child image | `exec("echo", args)` | `execlp("ls", "ls", "-l", (char *)NULL)` |
-| Reap the child | `wait(&status)` | `waitpid(pid, &status, 0)` |
+| Replace its image | `exec("echo", args)` | `execlp("ls", "ls", "-l", (char *)NULL)` |
+| Reap it | `wait(&status)` | `waitpid(pid, &status, 0)` |
 
-The lifecycle is the same: fork creates a separate process with inherited descriptors and memory contents; exec replaces the child image while retaining its PID; wait synchronizes with termination and reaps it. Linux `execlp` is a libc helper with PATH search and a variadic argument list. xv6's `exec` takes an explicit pathname and argument vector and does no PATH search. xv6 `wait` waits for a child and stores the exit value directly; Linux waitpid can select a child and returns an encoded status decoded with wait macros.
+The process lifecycle is the same: fork creates a child with inherited memory contents and descriptors; exec replaces its program while retaining its PID; wait collects its termination information and reaps it. Linux execlp is a libc helper with PATH search and variadic arguments. xv6 exec takes a pathname and an argument vector directly, without PATH search. xv6 wait stores the exit value directly, whereas Linux waitpid returns an encoded status requiring wait macros.
 
-### 2. Who prints hello from the child
+### 2. Who prints hello from the child?
 
-The `echo` program prints it. Before exec, `run` prints only the parent and child PID messages. Successful exec never returns to the old program; the new echo image uses the supplied argument strings to produce `hello from the child`.
+The echo executable prints it. run prints the PID messages before exec; successful exec never returns to that old image. echo receives the words in its argument vector and writes the resulting message.
 
-### 3. Why the failure statuses differ
+### 3. Why failure is 1 here and 127 on Linux
 
-The xv6 branch after failed exec explicitly calls `exit(1)`, so its parent prints status 1. The Linux branch explicitly calls `exit(127)`, so its parent prints 127 after decoding it. The values were chosen by the programs; exec itself returns an error to the caller instead of automatically deciding this exit status. The xv6 parent still exits 0 after reporting its child, as in the supplied example.
+The xv6 branch explicitly calls `exit(1)` after exec fails, while the Linux branch explicitly calls `exit(127)`. The programs choose those numbers; exec returns an error rather than automatically assigning an exit code. The xv6 parent still exits 0 after reporting the child, following the supplied example.
 
 ## Part 2 - pingpong
 
-`user/pingpong.c` creates two pipes, `p2c` and `c2p`. The child closes `p2c[1]` and `c2p[0]`; the parent closes `p2c[0]` and `c2p[1]`. The parent initializes the byte to `p`, writes it to the first pipe, and waits in a read on the second pipe. The child reads the byte, prints its ping message, writes the byte back, closes its descriptors and exits. The parent receives the reply, prints pong, closes descriptors and reaps the child.
+`user/pingpong.c` creates parent-to-child and child-to-parent pipes and forks. Each process closes the ends it does not use. The parent sends one initialized byte; the child reads it, prints ping, sends the same byte back and exits. The parent reads the reply, prints pong, closes the remaining ends and reaps the child. Failures from pipe, fork, read, write and wait are checked.
 
-```text
+```diagram
 parent p2c[1] -- one byte --> p2c[0] child
 parent c2p[0] <-- one byte -- c2p[1] child
 ```
 
+
 ```text
 $ pingpong
-64: received ping
-63: received pong
+10: received ping
+9: received pong
 ```
 
-The actual child PID is 64 and the parent PID is 63. The order is guaranteed by the code: the child prints ping before writing the reply, and the parent prints pong only after receiving it. Scheduler timing may delay either process, but cannot reverse these messages in a successful exchange. Pipe, fork, read, write and wait errors are checked; a failed exchange exits nonzero.
 
-### 1. Why two pipes
+![The child prints received ping before its parent prints received pong.](../report/img/08_03_pingpong.png)
 
-A pipe is a one-way byte stream. Using a separate pipe per direction gives each process an unambiguous input and output channel. If both processes read and write a single shared pipe, either can consume its own byte because a pipe does not address messages to particular readers. Two pipes implement the required reliable round trip without that race.
 
-### 2. Which call waits for the reply
+The child PID was **10** and the parent PID was **9**. The child prints ping before writing the reply, and the parent prints pong only after receiving that byte. This data dependency guarantees the message order even if scheduling changes the timing.
 
-The parent's `read(c2p[0], &b, 1)` blocks while there are no bytes available and a writer remains open. The child writing its reply makes that read complete. The later `wait(&status)` reaps the child; it is not what makes the parent wait for the reply byte. Closing unused write ends also ensures a failed/exited peer can produce EOF rather than leaving a reader blocked indefinitely.
+### 1. Why two pipes rather than one
 
-## Optional - Prime sieve
+A pipe is a one-way byte stream with no addressed messages. A separate pipe for each direction gives each process a distinct input and output channel. If both processes read and write the same pipe, either could consume its own byte instead of the intended peer receiving it.
 
-`user/primes.c` generates integers 2 through 35 and builds a process chain. Each filter reads its first integer as a prime, prints it, and forwards only integers not divisible by that prime through a new pipe to its child. Reads and writes transfer one integer at a time. Every process closes inherited unused ends and its output end when input reaches EOF, then waits for its child. The empty final stage exits without printing.
+### 2. Which call makes the parent wait for the reply
 
-```text
-$ primes
-prime 2
-prime 3
-prime 5
-prime 7
-prime 11
-prime 13
-prime 17
-prime 19
-prime 23
-prime 29
-prime 31
-```
+`read(c2p[0], &b, 1)` blocks until the child supplies a byte while a writer remains open. The later wait call reaps the child; it is not what synchronizes reception of the reply. Closing unused writers also makes EOF possible when the peer exits without replying.
 
-The output matches all eleven primes in the inclusive interval 2 through 35. Closing the final writers propagates EOF through the chain so all filters can exit. Keeping only necessary descriptors also stays within xv6's per-process descriptor limit.
+## Optional - Primes
+
+`user/primes.c` generates integers 2 through 35 and creates a chain of filtering processes. Each filter reads its first number as a prime, prints it, and forwards only numbers not divisible by it to the next stage. Each process closes its unused pipe ends and its output end when input reaches EOF, then waits for its child.
+
+![The process-chain sieve prints every prime from 2 through 35 and terminates.](../report/img/08_04_primes.png)
+
+
+The actual output is **2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31**, exactly the eleven primes in that inclusive interval. Closing the final writers propagates EOF through the chain and lets every filter exit. Retaining only necessary descriptors also respects xv6's per-process descriptor limit.
 
 ## Submission checklist
 
-Required: `user/run.c`, `user/pingpong.c`, the complete xv6 `Makefile`, and this `notes.md`. Also included: `user/runls.c`, `user/runmissing.c`, optional `user/primes.c`, build instructions and the terminal transcript. All five sources have matching `UPROGS` entries. The report directory contains the LaTeX report and compiled PDF.
+`user/run.c`, `user/pingpong.c`, the complete xv6 `Makefile`, and this `notes.md` are included. The two required variants are `user/runls.c` and `user/runmissing.c`; `user/primes.c` provides the optional sieve. All five have matching UPROGS entries. The build log, transcript and screenshots come from the installed xv6 executed inside UbuntuVM.
