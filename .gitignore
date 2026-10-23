@@ -44,3 +44,13 @@
 
 # Generated PDFs (optional)
 # *.pdf
+
+# Lab 07 generated Linux executables and redirection output
+/lab_07/submission/run
+/lab_07/submission/run_date
+/lab_07/submission/run_missing
+/lab_07/submission/zombie
+/lab_07/submission/redirect
+/lab_07/submission/pipeline
+/lab_07/submission/pipeline3
+/lab_07/submission/out.txt

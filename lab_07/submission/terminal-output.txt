@@ -1,0 +1,117 @@
+### run
+$ ./run
+parent: my PID is 8781
+child:  my PID is 8782, my parent is 8781
+total 536
+-rw-r--r-- 1 student student   253 Oct 23 09:36 Makefile
+-rwxr-xr-x 1 student student 70792 Oct 23 09:36 pipeline
+-rw-r--r-- 1 student student  1294 Oct 23 09:36 pipeline.c
+-rwxr-xr-x 1 student student 70912 Oct 23 09:36 pipeline3
+-rw-r--r-- 1 student student  1475 Oct 23 09:36 pipeline3.c
+-rwxr-xr-x 1 student student 70888 Oct 23 09:36 redirect
+-rw-r--r-- 1 student student   755 Oct 23 09:36 redirect.c
+-rwxr-xr-x 1 student student 70880 Oct 23 09:36 run
+-rw-r--r-- 1 student student   663 Oct 23 09:36 run.c
+-rwxr-xr-x 1 student student 70888 Oct 23 09:36 run_date
+-rw-r--r-- 1 student student   661 Oct 23 09:36 run_date.c
+-rwxr-xr-x 1 student student 70888 Oct 23 09:36 run_missing
+-rw-r--r-- 1 student student   673 Oct 23 09:36 run_missing.c
+-rwxr-xr-x 1 student student 70936 Oct 23 09:36 zombie
+-rw-r--r-- 1 student student   733 Oct 23 09:36 zombie.c
+parent: child 8782 ended with status 0
+
+
+### run_date
+$ ./run_date
+parent: my PID is 8783
+child:  my PID is 8784, my parent is 8783
+Fri Oct 23 09:38:56 UTC 2026
+parent: child 8784 ended with status 0
+
+
+### run_missing
+$ ./run_missing
+parent: my PID is 8785
+child:  my PID is 8786, my parent is 8785
+exec: No such file or directory
+parent: child 8786 ended with status 127
+
+
+### redirect
+$ ./redirect
+open gave descriptor 1
+done: the listing is in out.txt
+
+
+### pipeline
+$ ./pipeline
+112
+
+
+### pipeline3
+$ ./pipeline3
+106
+
+
+### shell_pipeline
+$ bash -c ls /etc | wc -l
+112
+
+
+### shell_pipeline3
+$ bash -c ls /usr/bin | grep x | wc -l
+106
+
+
+### zombie_before
+$ ps -o pid,ppid,stat,cmd -p 8803,8804
+  PID  PPID STAT CMD
+ 8803  8776 S    ./zombie
+ 8804  8803 Z    [ls] <defunct>
+
+
+### zombie_after
+$ ps -o pid,ppid,stat,cmd -p 8804
+  PID  PPID STAT CMD
+
+
+### broken_pipeline
+$ ./broken (parent write end left open)
+  PID  PPID STAT CMD
+ 8812  8776 Ss   /tmp/tmpeiiz8bal/broken
+ 8814  8812 S    wc -l
+Still running after 1 second; stopped by test harness.
+
+
+### args_0
+$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args one   two  three
+argc = 4
+argv[0] = [args]
+argv[1] = [one]
+argv[2] = [two]
+argv[3] = [three]
+
+
+### args_1
+$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args *.c "x y"
+argc = 4
+argv[0] = [args]
+argv[1] = [a.c]
+argv[2] = [b.c]
+argv[3] = [x y]
+
+
+### args_2
+$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args $HOME
+argc = 2
+argv[0] = [args]
+argv[1] = [/home/student]
+
+
+### args_3
+$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args 'single quoted'
+argc = 2
+argv[0] = [args]
+argv[1] = [single quoted]
+
+All Linux behavior assertions passed.

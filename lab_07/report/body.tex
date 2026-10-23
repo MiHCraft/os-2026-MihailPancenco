@@ -1,0 +1,143 @@
+% Terminal records and all Observe answers.
+\section{Environment and evidence}
+
+Built and tested on 23 October 2026 in Debian GNU/Linux, ARM64, as non-root user \texttt{student}. The Makefile builds with C11, \texttt{-Wall -Wextra -Werror}. The terminal blocks below come from actual runs. PIDs, dates, file listings and directory counts vary across machines. Complete captured output is in \texttt{terminal-output.txt}. The programs were tested in a temporary Linux container; they can also be compiled with the individual gcc commands from the handout.
+
+\begin{lstlisting}[style=terminal]
+make
+# Or, for example:
+gcc -Wall -Wextra -o run run.c
+\end{lstlisting}
+
+\section{Part 1 - fork, exec and wait}
+
+\texttt{run.c} preserves the supplied lab program: the parent prints and flushes its PID, forks, the child prints its PID and parent PID, then uses \texttt{execlp} to become \texttt{ls -l}. The parent waits with \texttt{waitpid} and decodes the child's termination status. The explicit flush before fork prevents a buffered parent message from being duplicated when stdout is captured.
+
+The two required one-line variants are kept as separate source files, \texttt{run\_date.c} and \texttt{run\_missing.c}, so all three behaviors remain reproducible without editing the final working \texttt{run.c}.
+
+Actual \texttt{run} output, with the directory listing shortened:
+
+\begin{lstlisting}[style=terminal]
+$ ./run
+parent: my PID is 8781
+child:  my PID is 8782, my parent is 8781
+total 536
+[directory entries omitted]
+parent: child 8782 ended with status 0
+\end{lstlisting}
+
+\begin{lstlisting}[style=terminal]
+$ ./run_date
+parent: my PID is 8783
+child:  my PID is 8784, my parent is 8783
+Fri Oct 23 09:38:56 UTC 2026
+parent: child 8784 ended with status 0
+$ ./run_missing
+parent: my PID is 8785
+child:  my PID is 8786, my parent is 8785
+exec: No such file or directory
+parent: child 8786 ended with status 127
+\end{lstlisting}
+
+\subsection{1. Why perror runs only after a failed exec}
+
+A successful \texttt{execlp} replaces the child's process image and never returns to the following line. The same PID now runs the new program. If exec fails, it returns -1 and sets errno; only then does \texttt{perror("exec")} execute. The missing-program variant deliberately exits with 127 after printing its error.
+
+\subsection{2. Whose PID is printed as my parent}
+
+The child prints 8781 as its parent in the recorded \texttt{run} experiment, the PID printed by the original parent process. \texttt{getpid()} returns the calling process's own ID; \texttt{getppid()} returns its current parent's ID. Here the parent stays alive and waits, so the child is not reparented during this observation.
+
+\subsection{3. Exit statuses}
+
+The parent reports 0 for successful \texttt{ls} and \texttt{date}, and 127 for \texttt{nosuchprog}. These are the child's exit statuses. The supplied parent program itself returns 0 after reporting them, including the missing-program experiment; this differs from the child status it prints. Linux waitpid returns an encoded wait status, so \texttt{WEXITSTATUS} extracts the exit value when the child exited normally. A general shell would also handle signal termination using \texttt{WIFEXITED}/\texttt{WIFSIGNALED}.
+
+\section{Part 2 - A zombie, on purpose}
+
+\texttt{zombie.c} is the \texttt{ls} version of \texttt{run.c} with \texttt{sleep(20)} immediately before \texttt{waitpid}. The test started it in the background, inspected its child after two seconds, then waited for the parent to finish.
+
+\begin{lstlisting}[style=terminal]
+$ ps -o pid,ppid,stat,cmd -p 8803,8804
+PID  PPID STAT CMD
+ 8803  8776 S    ./zombie
+ 8804  8803 Z    [ls] <defunct>
+$ ps -o pid,ppid,stat,cmd -p 8804
+PID  PPID STAT CMD
+\end{lstlisting}
+
+\subsection{1. The Z state}
+
+The child's STAT letter is \texttt{Z}, meaning zombie: \texttt{ls} has exited, but the kernel retains its PID and termination status until its parent reaps it. It is not running useful code or sleeping to finish its work. The parent's \texttt{S} means sleeping.
+
+\subsection{2. What removes the zombie}
+
+After the parent wakes from its 20-second sleep, \texttt{waitpid(pid,\allowbreak{} \&status,\allowbreak{} 0)} consumes the child's recorded exit information and removes its process-table entry. The second \texttt{ps} has only the header for that PID. The elapsed sleep alone does not reap a child; the wait call does.
+
+\section{Part 3 - Output redirection}
+
+\texttt{redirect.c} forks, closes descriptor 1 in its child, opens \texttt{out.txt} with \texttt{O\_WRONLY | O\_CREAT | O\_TRUNC} and mode 0644, then execs \texttt{ls -l}. The parent retains its terminal/capture stdout and waits. The program checks fork/open/exec/wait errors and reports the child result.
+
+\begin{lstlisting}[style=terminal]
+$ ./redirect
+open gave descriptor 1
+done: the listing is in out.txt
+\end{lstlisting}
+
+\texttt{out.txt} was also checked to begin with the \texttt{total} header of a long directory listing. It is generated when the program runs, rather than submitted as a machine-specific listing.
+
+\subsection{1. Why open returned 1}
+
+\texttt{open} chooses the lowest unused descriptor. Standard descriptors 0, 1 and 2 were initially open; closing 1 made it the first free slot. The recorded diagnostic confirms that open returned 1. This experiment relies on the normal standard-descriptor setup.
+
+\subsection{2. Why unchanged ls writes to the file}
+
+\texttt{ls} still writes to descriptor 1. The forked child's descriptor table was modified before exec, and descriptors remain open across exec unless marked close-on-exec. Consequently \texttt{ls} inherits stdout pointing at \texttt{out.txt}. The diagnostic is sent to descriptor 2 and remains visible; the parent's final message also remains visible because descriptor changes were made only in the child.
+
+\subsection{3. Redirecting errors}
+
+For \texttt{2> err.txt}, close descriptor 2 before opening the error file, leaving descriptors 0 and 1 open so the file gets 2. A general implementation can use \texttt{dup2(fd,\allowbreak{} STDERR\_FILENO)} to select the target explicitly. Descriptor 2 is standard error; descriptor 1 is standard output.
+
+\section{Part 4 - A pipe}
+
+\texttt{pipeline.c} creates a pipe and forks two children. The producer closes stdout and duplicates the write end onto descriptor 1, then execs \texttt{ls /\allowbreak{}etc}. The consumer closes stdin and duplicates the read end onto descriptor 0, then execs \texttt{wc -l}. Each child closes both original pipe descriptors after duplication. The parent closes both ends and waits for both specific children.
+
+\begin{lstlisting}[style=terminal]
+$ ./pipeline
+112
+$ ls /etc | wc -l
+112
+\end{lstlisting}
+
+\subsection{1. Comparison with the real shell}
+
+Both counts are 112 in the recorded environment. This equality, rather than the particular count, verifies the connection. \texttt{ls} writes one filename per line when its output is a pipe, and \texttt{wc -l} counts those lines.
+
+\subsection{2. Which child hangs after leaving a writer open}
+
+The experiment commented out only the parent's final \texttt{close(p[1])} in a temporary copy, compiled it and inspected it. The submitted \texttt{pipeline.c} remains the working version. The temporary program was still running after one second:
+
+\begin{lstlisting}[style=terminal]
+$ ./broken (parent write end left open)
+PID  PPID STAT CMD
+ 8812  8776 Ss   /tmp/tmpeiiz8bal/broken
+ 8814  8812 S    wc -l
+Still running after 1 second; stopped by test harness.
+\end{lstlisting}
+
+\texttt{ls} had already exited; \texttt{wc -l} was still sleeping. The test stopped the temporary process group after the observation, equivalent to interrupting the foreground pipeline with Ctrl-C.
+
+\subsection{3. What wc is waiting for}
+
+\texttt{wc} is waiting for EOF: after buffered bytes are consumed, read returns EOF only when every descriptor referring to the pipe's write end is closed. The parent's unused open writer keeps that condition false, while the parent waits for \texttt{wc} to exit. Pipe end closure is part of the communication protocol, not just resource tidiness.
+
+\section{Optional - Three stages}
+
+\texttt{pipeline3.c} implements \texttt{ls /\allowbreak{}usr/\allowbreak{}bin | grep x | wc -l} using two pipes and three children. The first child redirects stdout, the middle child redirects both stdin and stdout, and the last redirects stdin. Every child and the parent close all four original pipe descriptors after the required duplicates.
+
+\begin{lstlisting}[style=terminal]
+$ ./pipeline3
+106
+$ ls /usr/bin | grep x | wc -l
+106
+\end{lstlisting}
+
+Both methods returned 106. The parent waits for every created child and reports a nonzero result if one fails. The optional source is included alongside the required programs.

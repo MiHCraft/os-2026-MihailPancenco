@@ -1,0 +1,61 @@
+\documentclass{tum_report}
+\usepackage[T1]{fontenc}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{microtype}
+\usepackage{courier}
+\usepackage{needspace}
+\definecolor{terminalbg}{RGB}{246,247,249}
+\definecolor{terminalframe}{RGB}{190,197,207}
+\lstdefinestyle{terminal}{
+  language={},basicstyle=\linespread{1}\ttfamily\fontsize{9}{11}\selectfont,
+  backgroundcolor=\color{terminalbg},rulecolor=\color{terminalframe},
+  frame=single,framerule=0.4pt,framesep=5pt,
+  breaklines=true,breakatwhitespace=false,columns=fullflexible,
+  keepspaces=true,showstringspaces=false,upquote=true,
+  numbers=none,aboveskip=10pt,belowskip=8pt,
+  xleftmargin=6pt,xrightmargin=6pt
+}
+\lstdefinestyle{source}{style=terminal,language=C,
+  numbers=left,numberstyle=\tiny\color{gray},numbersep=8pt,
+  xleftmargin=18pt,basicstyle=\linespread{1}\ttfamily\fontsize{9}{11}\selectfont}
+\setlength{\emergencystretch}{3em}
+\setcounter{tocdepth}{1}
+\hypersetup{pdftitle={Lab 8 - The Same Calls, Inside Your Own OS},pdfauthor={Mihail Pancenco}}
+\begin{document}
+\input{title_page.tex}
+\tableofcontents
+\thispagestyle{empty}
+\clearpage
+\chapter{Introduction}
+Repeat the Linux process lifecycle in xv6, implement a two-pipe byte exchange, and extend the pipe mechanism into a process-chain prime sieve.
+
+This report follows the teacher's handout and includes every required Observe answer. Terminal-style listings replace new screenshots. Recorded output is identified with its execution environment; shortened excerpts are marked. Source files and build instructions are provided in the submission directory.
+\chapter{Tasks and results}
+\input{body.tex}
+\clearpage
+\input{conclusion.tex}
+\par\vspace{0.8cm}
+\input{bibliography.tex}
+\clearpage
+\appendix
+\chapter{Submitted source code}
+The following listings read the actual submitted source files, so the report and submission use the same implementation. Variant programs are included where relevant.
+\Needspace{329pt}
+\section{user/run.c}
+\lstinputlisting[style=source]{../submission/user/run.c}
+\Needspace{329pt}
+\section{user/runls.c}
+\lstinputlisting[style=source]{../submission/user/runls.c}
+\Needspace{329pt}
+\section{user/runmissing.c}
+\lstinputlisting[style=source]{../submission/user/runmissing.c}
+\Needspace{582pt}
+\section{user/pingpong.c}
+\lstinputlisting[style=source]{../submission/user/pingpong.c}
+\Needspace{615pt}
+\section{user/primes.c}
+\lstinputlisting[style=source]{../submission/user/primes.c}
+
+\end{document}

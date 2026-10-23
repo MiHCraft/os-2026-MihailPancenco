@@ -1,0 +1,54 @@
++ echo hello
++ cat
+hello
++ ls
++ grep READ
+README
++ echo a
++ echo b
++ wc
+      2       2       4
+one
+two
++ echo one
++ echo two
+bg
++ wait
++ echo bg
++ ls README f
+README
+f
++ echo /home/student
++ echo 'a b'
++ mkdir d
+/home/student
+a b
++ cd d
++ ls ..
+README
+d
+f
++ rm -rf /tmp/tmp.UmWK23Oi8r
+
+
+ARGUMENT TESTS
+$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args one   two  three
+argc = 4
+argv[0] = [args]
+argv[1] = [one]
+argv[2] = [two]
+argv[3] = [three]
+$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args *.c "x y"
+argc = 4
+argv[0] = [args]
+argv[1] = [a.c]
+argv[2] = [b.c]
+argv[3] = [x y]
+$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args $HOME
+argc = 2
+argv[0] = [args]
+argv[1] = [/home/student]
+$ bash -c PATH="/tmp/tmpw7cjdhmq:$PATH"; args 'single quoted'
+argc = 2
+argv[0] = [args]
+argv[1] = [single quoted]

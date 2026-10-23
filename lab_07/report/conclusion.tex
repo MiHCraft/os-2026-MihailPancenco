@@ -1,0 +1,3 @@
+\chapter{Conclusions}
+
+The tests connect shell operations to fork, exec and wait. A zombie records an exited child until its parent reaps it. Redirection changes a descriptor in the child so an unchanged program writes to a file. Two- and three-stage pipelines match the shell counts, and the deliberately leaked write descriptor demonstrates that EOF depends on closing every writer.

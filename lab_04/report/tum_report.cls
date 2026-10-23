@@ -102,7 +102,7 @@
 \DeclareCaptionLabelFormat{tablel}{Table #2}
 
 \makeatletter
-\renewcommand\chapter{\if@openright\cleardoublepage\else\relax\fi
+\renewcommand\chapter{\par\if@openright\cleardoublepage\else\relax\fi
   \thispagestyle{plain}%
   \global\@topnum\z@
   \@afterindentfalse

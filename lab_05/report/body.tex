@@ -1,0 +1,327 @@
+% Terminal records and all Observe answers.
+\section{Environment and evidence}
+
+These experiments were run on 23 October 2026 in a Debian GNU/Linux ARM64 container hosted by Docker Desktop on macOS. The commands ran as ordinary user \texttt{student}, not root, with umask \texttt{0022}. The experiment directory was a fresh temporary directory on the Linux filesystem, not the macOS shared repository. This matters for permissions, inodes, sparse files and link counts.
+
+The terminal excerpts are real captured output; listings are shortened where indicated. \texttt{terminal-output.txt} retains the full session. The disk, memory, CPU and directory-size measurements describe the Linux environment used for validation, not a separately booted Ubuntu laptop. \texttt{collect.sh} repeats all commands without altering existing work and deletes its temporary experiment directory on exit.
+
+\section{Part 1 - The tree and file types}
+
+\begin{lstlisting}[style=terminal]
+$ whoami
+student
+$ ls -ld /etc /etc/passwd /bin /dev/null /tmp
+lrwxrwxrwx 1 root root    7 Aug 24 00:00 /bin -> usr/bin
+crw-rw-rw- 1 root root 1, 3 Oct 23 09:33 /dev/null
+drwxr-xr-x 1 root root 4096 Oct 23 09:35 /etc
+-rw-r--r-- 1 root root 1125 Oct 23 09:35 /etc/passwd
+drwxrwxrwt 1 root root 4096 Oct 23 09:38 /tmp
+$ file /usr/bin/ls /etc/passwd /bin
+/usr/bin/ls: ELF 64-bit LSB pie executable, ARM aarch64, dynamically linked [...]
+/etc/passwd: ASCII text
+/bin:        symbolic link to usr/bin
+\end{lstlisting}
+
+\subsection{1. Types from ls -l}
+
+{\small\setlength{\tabcolsep}{4pt}\renewcommand{\arraystretch}{1.25}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.25\textwidth}>{\raggedright\arraybackslash}p{0.29\textwidth}>{\raggedright\arraybackslash}p{0.38\textwidth}@{}}
+\toprule
+
+\textbf{Path} & \textbf{First character} & \textbf{Type} \\ \midrule
+\endfirsthead
+
+\textbf{Path} & \textbf{First character} & \textbf{Type} \\ \midrule
+\endhead
+
+\texttt{/\allowbreak{}etc} & \texttt{d} & Directory holding system configuration. \\
+
+\texttt{/\allowbreak{}etc/\allowbreak{}passwd} & \texttt{-} & Regular file with account metadata. \\
+
+\texttt{/\allowbreak{}bin} & \texttt{l} & Symbolic link to \texttt{usr/\allowbreak{}bin}, resolved as \texttt{/\allowbreak{}usr/\allowbreak{}bin}. \\
+
+\texttt{/\allowbreak{}dev/\allowbreak{}null} & \texttt{c} & Character device; writes are discarded and reads return EOF. \\
+
+\texttt{/\allowbreak{}tmp} & \texttt{d} & Directory for temporary files, with a sticky bit. \\
+
+\bottomrule\end{longtable}}
+
+The first character describes the inode type, while the next nine characters describe access permissions. A symbolic link has its own inode and stores a pathname to resolve.
+
+\subsection{2. What /bin is}
+
+On this merged-/usr installation, \texttt{/\allowbreak{}bin} is a symbolic link, not a separate directory. Its stored target is the relative pathname \texttt{usr/\allowbreak{}bin}; relative to its parent \texttt{/\allowbreak{}}, that is \texttt{/\allowbreak{}usr/\allowbreak{}bin}.
+
+\subsection{3. Character and block devices}
+
+\texttt{/\allowbreak{}dev/\allowbreak{}null} is a character device, major 1, minor 3. \texttt{lsblk} identifies virtual disk \texttt{vda} and partition \texttt{vda1}; \texttt{df} reports the source \texttt{/\allowbreak{}dev/\allowbreak{}vda1} for the files bind-mounted at \texttt{/\allowbreak{}etc/\allowbreak{}hosts}, \texttt{/\allowbreak{}etc/\allowbreak{}hostname} and \texttt{/\allowbreak{}etc/\allowbreak{}resolv.conf}. The isolated container does not expose that block-device node in its own \texttt{/\allowbreak{}dev}, so a \texttt{b}-type entry could not be directly listed there. This is a container visibility limit, not evidence that the Linux VM has no block devices. On a full Linux installation, \texttt{ls -l /\allowbreak{}dev/\allowbreak{}vda /\allowbreak{}dev/\allowbreak{}vda1} (or the actual \texttt{sda}/\texttt{nvme} names) lists the block nodes. No synthetic block node was created for this report.
+
+\subsection{4. Compare /var/log and /usr}
+
+\begin{lstlisting}[style=terminal]
+$ du -sh /var/log 2>/dev/null ; du -sh /usr 2>/dev/null
+504K    /var/log
+1.5G    /usr
+\end{lstlisting}
+
+\texttt{/\allowbreak{}usr} is larger by about 1.5 GiB, roughly 3,100 times the rounded \texttt{/\allowbreak{}var/\allowbreak{}log} value. These are allocated-space estimates from \texttt{du}, not sums of apparent lengths. Diagnostics for unreadable paths were suppressed as the handout requests.
+
+\section{Part 2 - Inodes and links}
+
+\subsection{1. Inode number and link count}
+
+\begin{lstlisting}[style=terminal]
+$ echo hello > notes.txt
+$ stat notes.txt
+  File: notes.txt
+  Size: 6       Blocks: 8       IO Block: 4096   regular file
+Device: 0,97    Inode: 33824229    Links: 1
+Access: (0644/-rw-r--r--)  Uid: (1001/student) Gid: (1001/student)
+[time fields omitted]
+$ ls -li notes.txt
+33824229 -rw-r--r-- 1 student student 6 Oct 23 09:38 notes.txt
+\end{lstlisting}
+
+\texttt{Inode: 33824229} identifies this inode within its filesystem; \texttt{Links: 1} counts hard-link directory entries naming it. The inode is not globally unique without a device/filesystem identifier. The filename lives in a directory entry, not inside the inode. \texttt{echo hello} writes six bytes, including its newline.
+
+\subsection{2. Removing the original name}
+
+\begin{lstlisting}[style=terminal]
+$ ln notes.txt hard.txt
+$ ls -li notes.txt hard.txt
+33824229 -rw-r--r-- 2 student student 6 Oct 23 09:38 hard.txt
+33824229 -rw-r--r-- 2 student student 6 Oct 23 09:38 notes.txt
+$ rm notes.txt
+$ cat hard.txt ; ls -li hard.txt
+hello
+33824229 -rw-r--r-- 1 student student 6 Oct 23 09:38 hard.txt
+\end{lstlisting}
+
+Both names point to the same inode. \texttt{rm} unlinks a directory entry and decreases the inode's link count; it does not distinguish an original name from a hard link. \texttt{hard.txt} remains readable with the same inode and content. Storage is reclaimable when the final hard link and final open reference are both gone.
+
+\subsection{3. Dangling symbolic link and its size}
+
+\begin{lstlisting}[style=terminal]
+$ ln -s hard.txt soft.txt
+$ ls -li hard.txt soft.txt
+33824229 -rw-r--r-- 1 student student 6 Oct 23 09:38 hard.txt
+33824251 lrwxrwxrwx 1 student student 8 Oct 23 09:38 soft.txt -> hard.txt
+$ cat soft.txt
+hello
+$ rm hard.txt
+$ cat soft.txt ; ls -l soft.txt
+cat: soft.txt: No such file or directory
+lrwxrwxrwx 1 student student 8 Oct 23 09:38 soft.txt -> hard.txt
+\end{lstlisting}
+
+The symlink has a different inode and stores the eight-byte string \texttt{hard.txt} (no terminating NUL or newline is counted in its size). After unlinking the target, the symlink still exists, but resolving its pathname fails. A symlink does not increase the target's hard-link count.
+
+\subsection{4. Directory link counts}
+
+Prediction: 2 links initially, then 4 after creating two immediate subdirectories. The measured result agrees:
+
+\begin{lstlisting}[style=terminal]
+$ mkdir d ; ls -ld d
+ drwxr-xr-x 2 student student 4096 Oct 23 09:38 d
+$ mkdir d/x d/y ; ls -ld d
+ drwxr-xr-x 4 student student 4096 Oct 23 09:38 d
+\end{lstlisting}
+
+The parent entry naming \texttt{d} and \texttt{d/\allowbreak{}.} account for the first two links. \texttt{d/\allowbreak{}x/\allowbreak{}..} and \texttt{d/\allowbreak{}y/\allowbreak{}..} each add a reference to \texttt{d}. The entry \texttt{d/\allowbreak{}..} points to d's parent, not back to d. This common Unix rule is filesystem dependent; the experiment filesystem implements it.
+
+\subsection{5. Apparent size versus allocated space}
+
+\begin{lstlisting}[style=terminal]
+$ echo x > one.txt ; ls -l one.txt ; du -h one.txt
+-rw-r--r-- 1 student student 2 Oct 23 09:38 one.txt
+4.0K    one.txt
+$ truncate -s 1G big.img ; ls -lh big.img ; du -h big.img
+-rw-r--r-- 1 student student 1.0G Oct 23 09:38 big.img
+0       big.img
+$ rm big.img
+\end{lstlisting}
+
+The two bytes are \texttt{x} and a newline. This filesystem allocates data in 4 KiB units; stat reports eight 512-byte accounting blocks. \texttt{truncate -s 1G} sets the logical length to 1,073,741,824 bytes without writing the data. The file is sparse: reads from holes return zeros and no data blocks are allocated yet. The displayed zero does not mean that its inode and other metadata require no storage.
+
+\section{Part 3 - Permissions}
+
+\subsection{1. Numeric modes and uses}
+
+{\small\setlength{\tabcolsep}{4pt}\renewcommand{\arraystretch}{1.25}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.25\textwidth}>{\raggedright\arraybackslash}p{0.29\textwidth}>{\raggedright\arraybackslash}p{0.38\textwidth}@{}}
+\toprule
+
+\textbf{Mode} & \textbf{Nine permission bits} & \textbf{Typical use} \\ \midrule
+\endfirsthead
+
+\textbf{Mode} & \textbf{Nine permission bits} & \textbf{Typical use} \\ \midrule
+\endhead
+
+\texttt{600} & \texttt{rw-------} & A private text file or private SSH key. \\
+
+\texttt{644} & \texttt{rw-r--r--} & A document readable by other users but writable only by its owner. \\
+
+\texttt{755} & \texttt{rwxr-xr-x} & A public directory or executable. \\
+
+\texttt{700} & \texttt{rwx------} & A private directory or personal executable. \\
+
+\bottomrule\end{longtable}}
+
+The type character shown by \texttt{ls -l} is separate from these nine bits. The owner, group and others each use weights read=4, write=2 and execute/search=1.
+
+\subsection{2. Why ownership does not bypass 000}
+
+\begin{lstlisting}[style=terminal]
+$ echo secret > s.txt
+$ chmod 600 s.txt ; ls -l s.txt
+-rw------- 1 student student 7 Oct 23 09:38 s.txt
+$ chmod 000 s.txt ; cat s.txt
+cat: s.txt: Permission denied
+$ chmod u+r s.txt ; cat s.txt
+secret
+\end{lstlisting}
+
+For this ordinary user, the kernel selects the owner's permission class, which has no read bit under mode 000. Ownership permits changing the mode with \texttt{chmod}; it does not grant automatic data access. After adding owner-read, the file can be opened. Running as root could invalidate this experiment because privileged processes can bypass ordinary access checks.
+
+\subsection{3. Umask and new objects}
+
+\begin{lstlisting}[style=terminal]
+$ umask ; touch new.txt ; mkdir newdir ; ls -ld new.txt newdir
+0022
+-rw-r--r-- 1 student student    0 Oct 23 09:38 new.txt
+drwxr-xr-x 2 student student 4096 Oct 23 09:38 newdir
+\end{lstlisting}
+
+The starting mode for an ordinary new file is 0666; for a directory it is 0777. Applying \texttt{mode \& \textasciitilde{}umask} gives \texttt{0666 \& \textasciitilde{}0022 = 0644} and \texttt{0777 \& \textasciitilde{}0022 = 0755}. A umask removes bits; it does not add executable permission to new text files. ACLs can further affect creation, but none is needed to explain these results.
+
+\subsection{4. Directory read versus execute}
+
+Prediction for read-only: names can be listed, but \texttt{box/\allowbreak{}f} cannot be opened. Prediction for execute-only: listing fails, but a known filename can be opened if the file itself permits reading. Both predictions were confirmed.
+
+\begin{lstlisting}[style=terminal]
+$ mkdir box ; echo hi > box/f
+$ chmod u=r,go= box ; ls box ; cat box/f
+f
+cat: box/f: Permission denied
+$ chmod u=x,go= box ; ls box ; cat box/f
+ls: cannot open directory 'box': Permission denied
+hi
+$ chmod 755 box
+\end{lstlisting}
+
+Directory \texttt{r} allows reading its list of names. Directory \texttt{x} allows searching/resolving a known entry and traversing the directory. Reading a file needs search permission on each parent directory and read permission on the file. Directory \texttt{w} together with \texttt{x} controls creating/removing names, independently of the file's own write bit.
+
+\subsection{5. setuid, sticky bit and /etc/shadow}
+
+\begin{lstlisting}[style=terminal]
+$ ls -l /usr/bin/passwd ; ls -ld /tmp
+-rwsr-xr-x 1 root root 72048 Dec 14 2025 /usr/bin/passwd
+drwxrwxrwt 1 root root 4096 Oct 23 09:38 /tmp
+$ cat /etc/shadow
+cat: /etc/shadow: Permission denied
+$ ls -l /etc/shadow
+-rw-r----- 1 root shadow 617 Oct 23 09:35 /etc/shadow
+\end{lstlisting}
+
+The owner's \texttt{s} denotes setuid plus owner-execute. When permitted by the execution environment, executing \texttt{passwd} gives it the effective UID of its owner, root, so it can update protected password data after enforcing authentication rules. The sticky \texttt{t} on \texttt{/\allowbreak{}tmp} permits shared creation while restricting removal/renaming to the file owner, directory owner or a privileged process. Sticky does not prevent reading someone else's readable file.
+
+\texttt{/\allowbreak{}etc/\allowbreak{}shadow} is owned by root and group shadow; \texttt{student} cannot read it. World-readable account metadata in \texttt{/\allowbreak{}etc/\allowbreak{}passwd} is separate from protected password hashes.
+
+\section{Part 4 - Disks and the kernel as files}
+
+\subsection{1. Disk drawing and the root mount}
+
+Recorded \texttt{lsblk} excerpt:
+
+\begin{lstlisting}[style=terminal]
+NAME   MAJ:MIN   SIZE RO TYPE MOUNTPOINTS
+vda    254:0       1T  0 disk
+`-vda1 254:1    1024G  0 part /etc/hosts
+                             /etc/hostname
+                             /etc/resolv.conf
+vdb    254:16  536.9M  1 disk
+[zero-sized network-block devices omitted]
+\end{lstlisting}
+
+The measured topology is:
+
+\begin{lstlisting}[style=terminal]
+Docker Desktop Linux VM
+  vda (1 TiB virtual disk)
+    vda1 (1024 GiB partition, ext4 backing storage)
+      container image layers + writable layer
+        overlay mounted at / inside this container
+      bind-mounted configuration files (/etc/hosts, etc.)
+  vdb (536.9 MiB, read-only virtual disk)
+\end{lstlisting}
+
+\texttt{mount} reports \texttt{overlay on /\allowbreak{} type overlay (rw,\allowbreak{}relatime,\allowbreak{}...)}. No partition is mounted directly on the container's \texttt{/\allowbreak{}}; overlay combines read-only image layers with a writable layer. The backing \texttt{/\allowbreak{}dev/\allowbreak{}vda1} mounts are ext4, verified with \texttt{findmnt -no SOURCE,\allowbreak{}FSTYPE,\allowbreak{}TARGET /\allowbreak{}etc/\allowbreak{}hosts}. Thus it would be incorrect to label the container root mount itself ext4. This drawing describes the VM/container topology that was actually available.
+
+\subsection{2. Root filesystem fullness}
+
+\begin{lstlisting}[style=terminal]
+$ df -h /
+Filesystem  Size  Used Avail Use% Mounted on
+overlay    1007G   25G  931G   3% /
+\end{lstlisting}
+
+The root mount reports about 25 GiB used and 3\% usage, with about 931 GiB available. The 1 TiB virtual disk and rounded \texttt{df} capacity differ because of filesystem metadata and accounting. Available space can also exclude reserved blocks; used plus available need not equal total.
+
+\subsection{3. CPU and RAM from /proc}
+
+\begin{lstlisting}[style=terminal]
+$ grep -c processor /proc/cpuinfo
+8
+$ head -3 /proc/meminfo
+MemTotal:        8025700 kB
+MemFree:         1499908 kB
+MemAvailable:    3892820 kB
+\end{lstlisting}
+
+There are 8 visible logical CPUs (not necessarily 8 physical cores). \texttt{MemTotal} is 8,025,700 KiB, about 7.65 GiB. In this container, these \texttt{/\allowbreak{}proc} readings describe the Linux VM's visible resources; CPU quotas and memory cgroup limits, if set, are separate from these values. \texttt{MemAvailable} estimates memory usable without swapping, including reclaimable cache, while \texttt{MemFree} is completely unused memory.
+
+\subsection{4. Which program /proc/self/status describes}
+
+\begin{lstlisting}[style=terminal]
+$ head -5 /proc/self/status
+Name:   head
+Umask:  0022
+State:  R (running)
+Tgid:   8764
+Ngid:   0
+$ ls -l /proc/self/fd
+[excerpt]
+0 -> /dev/null
+1 -> pipe:[29578117]
+2 -> pipe:[29578118]
+3 -> /proc/8761/fd
+\end{lstlisting}
+
+The name is \texttt{head}: \texttt{/\allowbreak{}proc/\allowbreak{}self} resolves for the process that opens it, which is \texttt{head}, rather than the shell that launched the command. In the next command, \texttt{self} refers to \texttt{ls}, so descriptor 3 is its own open directory descriptor. Standard output/error point to capture pipes because this session was recorded. These are live kernel views, not ordinary on-disk copies of process data.
+
+\section{Stretch A - Magic numbers}
+
+\begin{lstlisting}[style=terminal]
+$ gzip -c /etc/passwd > notes.txt
+$ file notes.txt
+notes.txt: gzip compressed data, was "passwd", [...] from Unix [...]
+$ xxd notes.txt | head -1
+00000000: 1f8b 0808 492a db6a 0003 7061 7373 7764  ....I*.j..passwd
+\end{lstlisting}
+
+The leading bytes \texttt{1f 8b} identify gzip, and \texttt{08} is its compression method (deflate). \texttt{file} examines the content signature, so the misleading \texttt{.txt} extension does not make the compressed stream plain text. Later header bytes contain flags, timestamps and the original name; they can change between runs.
+
+\section{Stretch C - Unlink a file that is still open}
+
+\begin{lstlisting}[style=terminal]
+$ echo retained-data > bigfile
+$ exec 3< bigfile
+$ rm bigfile
+$ ls -l /proc/$$/fd/3
+lr-x------ 1 student student 64 Oct 23 09:38 /proc/8770/fd/3 -> /tmp/os-lab5.18dfip/bigfile (deleted)
+$ cat <&3
+retained-data
+$ exec 3<&-
+\end{lstlisting}
+
+The directory entry has disappeared but descriptor 3 still holds the inode open, as the \texttt{(deleted)} suffix indicates. Data remains readable through that descriptor. With no remaining hard links or other open references, closing descriptor 3 permits the filesystem to reclaim the storage. This is the same name-versus-object distinction seen in the hard-link experiment.

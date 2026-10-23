@@ -1,0 +1,3 @@
+\chapter{Conclusions}
+
+The xv6 implementation makes inode identity and directory structure directly visible. mystat confirms that hard links share one inode and that unlink changes the link count rather than copying or immediately deleting data. The disk constants yield a 268 KiB maximum file and a 2000-block image. find locates nested matches and its optional inode display distinguishes equal names from actual hard links.

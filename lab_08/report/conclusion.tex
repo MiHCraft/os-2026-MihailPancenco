@@ -1,0 +1,3 @@
+\chapter{Conclusions}
+
+The xv6 process lifecycle follows the same fork-exec-wait pattern as Linux, with smaller interfaces and explicit executable paths. The failure status comes from the exit call chosen by the program. The two-pipe exchange guarantees ping before pong because the parent blocks for the reply. The optional sieve demonstrates how correct descriptor closure propagates EOF through a chain of processes.
