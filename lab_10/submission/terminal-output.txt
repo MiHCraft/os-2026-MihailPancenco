@@ -1,0 +1,215 @@
+Ubuntu 26.04.1 LTS in VirtualBox, 9 November 2026
+Commands tagged xv6 ran at the QEMU guest shell.
+
+[ubuntu] cd xv6-riscv
+
+[ubuntu] git rev-parse --short HEAD; qemu-system-riscv64 --version | head -1
+06aad25
+QEMU emulator version 10.2.1 (Debian 1:10.2.1+ds-1ubuntu3.2)
+
+[ubuntu] make -j4 kernel/kernel fs.img > ../logs/build-baseline.txt 2>&1 && echo 'Build OK'
+Build OK
+
+[ubuntu] make qemu CPUS=1
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+init: starting sh
+
+[xv6] echo baseline boot OK
+baseline boot OK
+
+[xv6] Ctrl-A X
+QEMU: Terminated
+
+[ubuntu] make -j4 kernel/kernel fs.img > ../logs/build-user.txt 2>&1 && echo 'Build OK'
+Build OK
+
+[ubuntu] riscv64-linux-gnu-objdump -d user/_trace | sed -n '/<trace>:/,+3p'
+00000000000003c8 <trace>:
+ 3c8:	48dd                	li	a7,23
+ 3ca:	00000073          	ecall
+ 3ce:	8082                	ret
+
+[ubuntu] make qemu CPUS=1
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+init: starting sh
+
+[xv6] trace 32 grep hello README
+3 trace: unknown sys call 23
+trace: failed
+
+[xv6] Ctrl-A X
+QEMU: Terminated
+
+[ubuntu] make -j4 kernel/kernel fs.img > ../logs/build-trace.txt 2>&1 && echo 'Build OK'
+Build OK
+
+[ubuntu] make qemu CPUS=1
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+init: starting sh
+
+[xv6] trace 32 grep hello README
+3: syscall read -> 1023
+3: syscall read -> 965
+3: syscall read -> 453
+3: syscall read -> 0
+
+[xv6] Ctrl-A X
+QEMU: Terminated
+
+[ubuntu] make qemu CPUS=1
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+init: starting sh
+
+[xv6] trace 2147483647 grep hello README
+3: syscall trace -> 0
+3: syscall exec -> 3
+3: syscall open -> 3
+3: syscall read -> 1023
+3: syscall read -> 965
+3: syscall read -> 453
+3: syscall read -> 0
+3: syscall close -> 0
+
+[xv6] trace 65536 echo hi
+hi4: syscall write -> 2
+
+4: syscall write -> 1
+
+[xv6] trace 2129920 grep hello README
+5: syscall open -> 3
+5: syscall close -> 0
+
+[xv6] trace 0 echo untraced
+untraced
+
+[xv6] echo ordinary
+ordinary
+
+[xv6] trace
+usage: trace mask command [args...]
+
+[xv6] trace 2 usertests forkforkfork
+usertests starting
+test forkforkfork: 9: syscall fork -> 10
+10: syscall fork -> 11
+11: syscall fork -> 12
+11: syscall fork -> 13
+11: syscall fork -> 14
+11: syscall fork -> 15
+11: syscall fork -> 16
+11: syscall fork -> 17
+11: syscall fork -> 18
+11: syscall fork -> 19
+11: syscall fork -> 20
+11: syscall fork -> 21
+11: syscall fork -> 22
+11: syscall fork -> 23
+11: syscall fork -> 24
+11: syscall fork -> 25
+11: syscall fork -> 26
+11: syscall fork -> 27
+11: syscall fork -> 28
+11: syscall fork -> 29
+11: syscall fork -> 30
+11: syscall fork -> 31
+11: syscall fork -> 32
+11: syscall fork -> 33
+11: syscall fork -> 34
+11: syscall fork -> 35
+11: syscall fork -> 36
+11: syscall fork -> 37
+11: syscall fork -> 38
+11: syscall fork -> 39
+11: syscall fork -> 40
+11: syscall fork -> 41
+11: syscall fork -> 42
+11: syscall fork -> 43
+11: syscall fork -> 44
+11: syscall fork -> 45
+11: syscall fork -> 46
+11: syscall fork -> 47
+11: syscall fork -> 48
+11: syscall fork -> 49
+11: syscall fork -> 50
+11: syscall fork -> 51
+11: syscall fork -> 52
+11: syscall fork -> 53
+11: syscall fork -> 54
+11: syscall fork -> 55
+11: syscall fork -> 56
+11: syscall fork -> 57
+11: syscall fork -> 58
+11: syscall fork -> 59
+11: syscall fork -> 60
+11: syscall fork -> 61
+11: syscall fork -> 62
+11: syscall fork -> 63
+11: syscall fork -> 64
+11: syscall fork -> 65
+11: syscall fork -> 66
+11: syscall fork -> 67
+11: syscall fork -> 68
+11: syscall fork -> 69
+11: syscall fork -> 70
+11: syscall fork -> -1
+OK
+ALL TESTS PASSED
+
+[xv6] Ctrl-A X
+QEMU: Terminated
+
+[ubuntu] head -9 ../logs/forkforkfork.txt; tail -6 ../logs/forkforkfork.txt
+trace 2 usertests forkforkfork
+usertests starting
+test forkforkfork: 9: syscall fork -> 10
+10: syscall fork -> 11
+11: syscall fork -> 12
+11: syscall fork -> 13
+11: syscall fork -> 14
+11: syscall fork -> 15
+11: syscall fork -> 16
+11: syscall fork -> 68
+11: syscall fork -> 69
+11: syscall fork -> 70
+11: syscall fork -> -1
+OK
+ALL TESTS PASSED
+
+[ubuntu] cd xv6-riscv
+
+[ubuntu] make qemu CPUS=1
+qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+xv6 kernel is booting
+
+init: starting sh
+
+[xv6] sysinfo
+Free memory: 133251072 bytes
+Processes in use: 3
+
+[xv6] trace 16777216 sysinfo
+4: syscall sysinfo -> 0
+Free memory: 133251072 bytes
+Processes in use: 3
+
+[xv6] trace 32 grep hello README
+5: syscall read -> 1023
+5: syscall read -> 965
+5: syscall read -> 453
+5: syscall read -> 0
+
+[xv6] Ctrl-A X
+QEMU: Terminated

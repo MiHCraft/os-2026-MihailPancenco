@@ -1,0 +1,48 @@
+Lab 10 — Add Your Own System Call: trace
+Ubuntu 26.04.1 LTS in VirtualBox, xv6 under QEMU 10.2.1, CPUS=1.
+
+Part 1. Syscall 22 was already sync. The user stub for trace loads 23
+into a7, executes ecall, and returns. With the user-side changes alone,
+the booted kernel reported "unknown sys call 23" and the launcher printed
+"trace: failed". Registering the handler made trace callable.
+
+Part 2. A process starts with a zero trace mask. sys_trace sets its mask,
+exec retains it, and kfork copies it to the child. The dispatcher prints
+PID, name and signed return value after a selected syscall returns.
+
+Part 3. Mask experiments
+
+trace 2147483647 grep hello README
+This mask enables bits 0 through 30. The observed calls were trace,
+exec, open, read (four times), and close. exit does not return
+to the dispatcher, so it does not produce an after-call line.
+
+1. trace 32 grep hello README
+   Mask 32 sets only bit 5 (read). open and close run with their bits
+   unset, so their lines are suppressed. The results were 1023, 965,
+   453 and 0 bytes. The positive values total 2441 bytes. Zero marks EOF.
+
+2. trace 2 usertests forkforkfork
+   Bit 1 selects fork. In kfork, "np->trace_mask = p->trace_mask;"
+   copies the mask to the child. PIDs 9, 10 and 11 produced traces.
+   The final fork returned -1 when no process slot was free, and the
+   test printed ALL TESTS PASSED.
+
+3. trace 65536 echo hi
+   Bit 16 selects write. The first write produced "hi" and returned 2,
+   so its trace message began immediately after "hi" on the same line.
+   The second write printed a newline and returned 1.
+
+4. trace 2129920 grep hello README
+   open is syscall 15 and close is syscall 21. The combined mask is
+   (1 << 15) | (1 << 21) = 32768 + 2097152 = 2129920.
+   The trace printed open -> 3 and close -> 0 only.
+
+Mask 0 and an ordinary echo without the launcher produced no trace lines.
+
+Optional sysinfo, syscall 24
+
+The syscall copies the number of bytes on the free-page list and the
+number of process slots with state other than UNUSED to user space.
+The observed run reported 133251072 free bytes and 3 occupied slots.
+With mask 16777216, the trace printed sysinfo -> 0.

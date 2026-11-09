@@ -18,3 +18,5 @@ Each laboratory contains three directories:
 | 06 | Inside the xv6 File System | [PDF](lab_06/report/main.pdf) |
 | 07 | Three Small Programs: Processes, Redirection, a Pipe | [PDF](lab_07/report/main.pdf) |
 | 08 | The Same Calls, Inside Your Own OS | [PDF](lab_08/report/main.pdf) |
+| 09 | Watching System Calls with strace | [PDF](lab_09/report/main.pdf) |
+| 10 | Add Your Own System Call: trace | [PDF](lab_10/report/main.pdf) |

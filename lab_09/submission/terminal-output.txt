@@ -1,0 +1,75 @@
+Ubuntu 26.04.1 LTS in VirtualBox, 9 November 2026
+
+[ubuntu] cd lab09/sample
+
+[ubuntu] head -1 /etc/os-release; uname -m; strace --version | head -1
+PRETTY_NAME="Ubuntu 26.04.1 LTS"
+aarch64
+strace -- version 6.19
+
+[ubuntu] strace -f -e trace=openat,read,write,close -o ../ls-filtered.strace ls -l
+total 8
+-rw-rw---- 1 misa misa 6 Nov  9 14:41 alpha.txt
+-rw-rw---- 1 misa misa 5 Nov  9 14:41 beta.txt
+
+[ubuntu] tail -12 ../ls-filtered.strace
+6062  close(4)                          = 0
+6062  openat(AT_FDCWD, "/usr/share/zoneinfo/Etc", O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_DIRECTORY) = 4
+6062  close(4)                          = 0
+6062  openat(AT_FDCWD, "/usr/share/zoneinfo/Australia", O_RDONLY|O_NONBLOCK|O_CLOEXEC|O_DIRECTORY) = 4
+6062  close(4)                          = 0
+6062  openat(AT_FDCWD, "/usr/share/zoneinfo/Etc/UTC", O_RDONLY|O_CLOEXEC) = 4
+6062  read(4, "TZif2\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"..., 114) = 114
+6062  read(4, "", 32)                   = 0
+6062  close(4)                          = 0
+6062  close(3)                          = 0
+6062  write(1, "total 8\n-rw-rw---- 1 misa misa 6"..., 103) = 103
+6062  +++ exited with 0 +++
+
+[ubuntu] gcc -Wall -Wextra -Werror -o syscalls ../syscalls.c
+
+[ubuntu] ./syscalls
+open returned descriptor 3
+write sent 14 bytes
+read got 14 bytes: hello, kernel
+
+[ubuntu] wc -c note.txt
+14 note.txt
+
+[ubuntu] strace -e trace=openat,write,read,close -o ../syscalls.strace ./syscalls
+open returned descriptor 3
+write sent 14 bytes
+read got 14 bytes: hello, kernel
+
+[ubuntu] sed -n '/"note.txt"/,$p' ../syscalls.strace
+openat(AT_FDCWD, "note.txt", O_WRONLY|O_CREAT|O_TRUNC, 0644) = 3
+write(1, "open returned descriptor 3\n", 27) = 27
+write(3, "hello, kernel\n", 14)         = 14
+write(1, "write sent 14 bytes\n", 20)   = 20
+close(3)                                = 0
+openat(AT_FDCWD, "note.txt", O_RDONLY)  = 3
+read(3, "hello, kernel\n", 63)          = 14
+write(1, "read got 14 bytes: hello, kernel"..., 33) = 33
+close(3)                                = 0
++++ exited with 0 +++
+
+[ubuntu] mv syscalls note.txt ..
+
+[ubuntu] strace -f -o ../ls-full.strace ls -l
+total 8
+-rw-rw---- 1 misa misa 6 Nov  9 14:41 alpha.txt
+-rw-rw---- 1 misa misa 5 Nov  9 14:41 beta.txt
+
+[ubuntu] grep -Ec '^[0-9]+ +[[:alnum:]_]+\(' ../ls-full.strace
+264
+
+[ubuntu] strace -f -c -e trace=openat ls -l >/dev/null
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+100.00    0.000949          30        31         1 openat
+------ ----------- ----------- --------- --------- ----------------
+100.00    0.000949          30        31         1 total
+
+[ubuntu] strace -f -c -e trace=openat -o ../openat-summary.txt ls -l >/dev/null
+
+[ubuntu] cd ../..

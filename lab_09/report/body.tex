@@ -1,0 +1,41 @@
+\chapter{Introduction}
+This laboratory observes the boundary between Linux programs and the kernel. The commands ran as \texttt{misa} in Ubuntu 26.04.1 LTS (AArch64) on VirtualBox on 9 November 2026, using strace 6.19 and GCC 15.2.0. The figures show the actual terminal sessions.
+
+\chapter{Tasks and results}
+\section{Observe ls with strace}
+The test directory initially contained two small files, \texttt{alpha.txt} and \texttt{beta.txt}. The \texttt{-f} option follows child processes; \texttt{-e trace=...} limits the displayed system calls. The \texttt{-o} option saves the trace separately from the listing.
+
+\labshot{\textwidth}{09_01_ls}{Filtered ls trace and the write to standard output.}
+
+The listing was printed with \texttt{write(1, ..., 103) = 103}. Descriptor \textbf{1} is standard output, and all 103 bytes from that call were written. The filtered trace recorded \textbf{85} calls, including file access and setup activity such as reading timezone data. The unfiltered run recorded \textbf{264} syscall entries for the same two-file directory.
+
+\clearpage
+\section{Write and read a file through the kernel}
+The program opens \texttt{note.txt} with create, write-only and truncate flags; writes the message; closes the file; and opens it again for reading. It checks each operation and verifies the bytes before printing them. \texttt{printf} is used only for terminal messages; the file itself is accessed with \texttt{open}, \texttt{write}, \texttt{read} and \texttt{close}.
+
+\labshot{0.84\textwidth}{09_02_io}{Compilation and verification of the 14-byte file.}
+\labshot{\textwidth}{09_03_trace}{File I/O on descriptor 3 and terminal diagnostics on descriptor 1.}
+
+Descriptors \textbf{0}, \textbf{1} and \textbf{2} are inherited as standard input, standard output and standard error. The first \texttt{openat} therefore returns the lowest unused number, \textbf{3}. After it is closed, the read-only open can reuse that number. On this system the C library implements the program's \texttt{open} calls with \texttt{openat}; \texttt{AT\_FDCWD} resolves the relative filename against the current working directory. The message has 14 bytes including the newline, without its C string terminator.
+
+\clearpage
+\section{Count one kind of call}
+An unfiltered \texttt{strace -f} run on the same directory saved the complete listing of calls. Counting lines that begin with a PID and a call name gave \textbf{264} syscall entries. A separate \texttt{strace -f -c -e trace=openat} run counted \textbf{31 openat calls}, including \textbf{one failed call}. The latter summary used redirected standard output; it counts one syscall type rather than all calls.
+
+\labshot{\textwidth}{09_04_counts}{Total syscall entries and the openat-only summary.}
+
+The count includes setup work and failed attempts, so it is an observation for this version of \texttt{ls}, this directory and this run. The submitted raw traces show the difference between filtering, counting, and tracing every syscall.
+
+\par\Needspace{180pt}\vspace{0.5cm}
+\chapter{Conclusions}
+The trace distinguished the application's file operations from its terminal output and library startup. A short \texttt{ls} invocation made hundreds of calls; the sample program's own file activity was easy to identify by its filename, descriptor and byte counts.
+
+\begin{thebibliography}{9}
+\bibitem{handout} Operating Systems, FCIM / FAF, Technical University of Moldova. Laboratory work No. 9: \emph{Watching System Calls with strace}. Course handout, 2026--2027.
+\bibitem{manual} Ubuntu manual pages for \texttt{strace(1)}, \texttt{open(2)}, \texttt{read(2)}, \texttt{write(2)} and \texttt{close(2)}.
+\end{thebibliography}
+
+\clearpage
+\appendix
+\chapter{Submitted source code}
+\lstinputlisting[style=source]{../submission/syscalls.c}

@@ -1,0 +1,36 @@
+\documentclass{tum_report}
+\usepackage[T1]{fontenc}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{microtype}
+\usepackage{courier}
+\usepackage{needspace}
+\definecolor{terminalbg}{RGB}{246,247,249}
+\definecolor{terminalframe}{RGB}{190,197,207}
+\lstdefinestyle{terminal}{
+  language={},basicstyle=\linespread{1}\ttfamily\fontsize{9}{11}\selectfont,
+  backgroundcolor=\color{terminalbg},rulecolor=\color{terminalframe},
+  frame=single,framerule=0.4pt,framesep=5pt,
+  breaklines=true,breakatwhitespace=false,columns=fullflexible,
+  keepspaces=true,showstringspaces=false,upquote=true,
+  numbers=none,aboveskip=10pt,belowskip=8pt,
+  xleftmargin=6pt,xrightmargin=6pt
+}
+\lstdefinestyle{source}{style=terminal,language=C,
+  numbers=left,numberstyle=\tiny\color{gray},numbersep=8pt,
+  xleftmargin=18pt,basicstyle=\linespread{1}\ttfamily\fontsize{9}{11}\selectfont}
+\setlength{\emergencystretch}{3em}
+\setcounter{tocdepth}{1}
+\newcommand{\labshot}[3]{%
+  \begin{figure}[H]\centering
+  \includegraphics[width=#1,height=0.57\textheight,keepaspectratio]{img/#2.png}
+  \caption{#3}\end{figure}}
+\hypersetup{pdftitle={Lab 9 - Watching System Calls with strace},pdfauthor={Mihail Pancenco}}
+\begin{document}
+\input{title_page.tex}
+\tableofcontents
+\thispagestyle{empty}
+\clearpage
+\input{body.tex}
+\end{document}

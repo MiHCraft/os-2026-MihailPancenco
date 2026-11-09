@@ -1,0 +1,70 @@
+\chapter{Introduction}
+This laboratory adds a per-process syscall tracer to xv6. The kernel was built and booted under QEMU 10.2.1 in Ubuntu 26.04.1 LTS on VirtualBox on 9 November 2026. An isolated Git worktree from the installed xv6 revision \texttt{06aad25} preserved the preceding laboratory files.
+
+\chapter{Tasks and results}
+\section{Part 1: The number and user side}
+The original kernel was built and booted first. Syscall 22 was already assigned to \texttt{sync}, so \texttt{trace} received number 23.
+\labshot{0.72\textwidth}{10_01_baseline}{Baseline xv6 boots and starts its shell.}
+
+The number goes in \texttt{kernel/syscall.h}. The declaration in \texttt{user/user.h} and the \texttt{entry("trace")} in \texttt{user/usys.pl} produce a callable stub. The disassembly confirmed \texttt{li a7,23}, \texttt{ecall} and \texttt{ret}. The Makefile places \texttt{user/trace.c} on the disk through \texttt{UPROGS}. The launcher sets its own mask and replaces its image with the requested program using \texttt{exec}.
+\labshot{0.72\textwidth}{10_02_user_stub}{Before registration, the kernel receives 23 and returns an unknown-syscall error.}
+
+The initial error is expected: the stub enters the kernel correctly, but the dispatch table has no handler for 23 yet.
+
+\clearpage
+\section{Part 2: Kernel handling and return values}
+The syscall dispatcher indexes its handler table with the number saved from \texttt{a7}. The new \texttt{sys\_trace} handler reads argument 0 from the trapframe via \texttt{argint}, stores it in the process's unsigned \texttt{trace\_mask}, and returns zero. A new process slot starts with a zero mask, and \texttt{kfork} copies the parent's mask to the child before it can run. \texttt{exec} retains the same process structure and its mask.
+
+After a registered syscall returns, the dispatcher saves its result to \texttt{a0}. If that syscall's bit is set, \texttt{printk} prints the PID, syscall name and signed result. The dispatch-table bounds check and the additional bit-width check keep the mask shift valid. Non-returning handlers such as \texttt{exit} cannot reach the after-call print.
+
+\begin{lstlisting}[style=source]
+p->trapframe->a0 = syscalls[num]();
+if (num < 8 * sizeof(p->trace_mask) &&
+    (p->trace_mask & (1U << num)) && syscallnames[num])
+  printk("%d: syscall %s -> %ld\n", p->pid,
+         syscallnames[num], p->trapframe->a0);
+\end{lstlisting}
+
+\labshot{0.84\textwidth}{10_03_read_mask}{After registration, mask 32 prints the four actual read results.}
+
+The positive reads were \textbf{1023, 965 and 453 bytes}, totalling \textbf{2441 bytes}. The final zero is end of file. Mask 32 selects bit 5 (\texttt{SYS\_read}), so open and close still execute but their lines are not printed.
+
+\clearpage
+\section{Part 3: Select syscalls with a mask}
+\labshot{0.88\textwidth}{10_04_masks}{All supported call bits, write-only, open/close, and untraced commands.}
+
+\begin{table}[H]\centering\small
+\begin{tabular}{@{}llp{0.55\textwidth}@{}}
+\toprule
+Mask & Bit(s) & Observed result \\
+\midrule
+32 & 5 & Only \texttt{read}. \\
+2147483647 & 0--30 & Returning calls made by the launcher and \texttt{grep}. \\
+2 & 1 & Only \texttt{fork}, including in descendant processes. \\
+65536 & 16 & Two writes for \texttt{echo hi}: 2 bytes, then 1 byte. \\
+2129920 & 15, 21 & \texttt{open} and \texttt{close} only. \\
+0 & none & No trace lines. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\texttt{echo hi} writes \texttt{hi} and the newline in two separate calls. The kernel logs the first after \texttt{hi} has reached the console, then logs the second after the newline. For open and close, the mask is $2^{15} + 2^{21} = 32768 + 2097152 = \mathbf{2129920}$. The observed run produced only those two call names.
+
+\clearpage
+\subsection{Fork inheritance}
+The line \texttt{np->trace\_mask = p->trace\_mask;} in \texttt{kfork} makes the mask available to the children. In \texttt{forkforkfork}, PIDs 9, 10 and 11 printed fork traces. The final \texttt{fork} returned $-1$ when the process table filled, and the test reported \texttt{ALL TESTS PASSED}. The figure shows the beginning and end of the saved trace.
+\labshot{0.91\textwidth}{10_05_fork}{Three tracing PIDs, process-table exhaustion, and the passing fork test.}
+
+\section{Optional: sysinfo}
+Syscall 24 fills a \texttt{struct sysinfo} with the free-list size in bytes and the number of process slots in use. The allocator helper traverses its list under the allocator lock, and the process helper reads each slot with its own lock held. The handler transfers the two measurements to user space with \texttt{copyout}. The standalone command showed \textbf{133251072 bytes} free and \textbf{3 processes in use}. Mask $2^{24}$ recorded \mbox{\texttt{sysinfo -> 0}}. The original read trace still passed afterward.
+\labshot{0.61\textwidth}{10_06_sysinfo}{Optional sysinfo, its trace entry and the read-mask regression check.}
+
+\clearpage
+\chapter{Conclusions}
+The staged experiment followed syscall 23 from the user stub to the kernel dispatcher, then verified per-process filtering across \texttt{exec} and \texttt{fork}. The read counts matched the README size, the fork test passed, and the optional call returned its data through the user address space. The submission contains the full xv6 source tree and the terminal results.
+
+\begin{thebibliography}{9}
+\bibitem{handout} Operating Systems, FCIM / FAF, Technical University of Moldova. Laboratory work No. 10: \emph{Add Your Own System Call: trace}. Course handout, 2026--2027.
+\bibitem{xv6} MIT PDOS. \emph{xv6-riscv}, base revision
+\href{https://github.com/mit-pdos/xv6-riscv/tree/06aad25c735fd3159bdfae5680be4eab7b1668b2}{\texttt{06aad25c735fd3159bdfae5680be4eab7b1668b2}}.
+\end{thebibliography}
