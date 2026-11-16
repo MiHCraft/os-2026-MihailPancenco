@@ -1,0 +1,81 @@
+Ubuntu in VirtualBox, 16 November 2026
+
+$ head -1 /etc/os-release; gcc --version | head -1; nproc
+PRETTY_NAME="Ubuntu 26.04.1 LTS"
+gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0
+6
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o race race.c
+$ for i in 1 2 3; do ./race; done
+counter = 1163851 (expected 2000000)
+counter = 1328231 (expected 2000000)
+counter = 1055195 (expected 2000000)
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o mutex mutex.c
+$ for i in 1 2 3; do ./mutex; done
+counter = 2000000 (expected 2000000)
+counter = 2000000 (expected 2000000)
+counter = 2000000 (expected 2000000)
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o sem sem.c
+$ for i in 1 2 3; do ./sem; done
+counter = 2000000 (expected 2000000)
+counter = 2000000 (expected 2000000)
+counter = 2000000 (expected 2000000)
+$ sed 's/sem_init(&s, 0, 1)/sem_init(\&s, 0, 2)/' sem.c > sem_two.c
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o sem_two sem_two.c
+$ for i in 1 2 3; do ./sem_two; done
+counter = 1943134 (expected 2000000)
+counter = 1939399 (expected 2000000)
+counter = 1948271 (expected 2000000)
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o atomic atomic.c
+$ for p in race mutex sem atomic; do echo "$p:"; /usr/bin/time -f "real %e s" "./$p"; done
+race:
+counter = 1109326 (expected 2000000)
+mutex:
+counter = 2000000 (expected 2000000)
+sem:
+counter = 2000000 (expected 2000000)
+atomic:
+counter = 2000000 (expected 2000000)
+real 0.00 s
+real 0.03 s
+real 0.03 s
+real 0.01 s
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o order order.c
+$ ./order
+B: waiting for the message...
+A: message written
+B: I read "hello"
+$ sed 's/sem_init(&ready, 0, 0)/sem_init(\&ready, 0, 1)/' order.c > order_one.c
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o order_one order_one.c
+$ ./order_one
+B: waiting for the message...
+B: I read ""
+A: message written
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o parking parking.c
+$ ./parking
+car 1 enters  (inside: 1)
+car 2 enters  (inside: 2)
+car 3 enters  (inside: 3)
+car 1 leaves  (inside: 2)
+car 3 leaves  (inside: 1)
+car 2 leaves  (inside: 0)
+car 5 enters  (inside: 1)
+car 4 enters  (inside: 2)
+car 6 enters  (inside: 3)
+car 4 leaves  (inside: 2)
+car 5 leaves  (inside: 1)
+car 6 leaves  (inside: 0)
+$ sed 's/^#define PLACES 3/#define PLACES 1/' parking.c > parking_one.c
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o parking_one parking_one.c
+$ ./parking_one
+car 2 enters  (inside: 1)
+car 2 leaves  (inside: 0)
+car 1 enters  (inside: 1)
+car 1 leaves  (inside: 0)
+car 4 enters  (inside: 1)
+car 4 leaves  (inside: 0)
+car 3 enters  (inside: 1)
+car 3 leaves  (inside: 0)
+car 5 enters  (inside: 1)
+car 5 leaves  (inside: 0)
+car 6 enters  (inside: 1)
+car 6 leaves  (inside: 0)

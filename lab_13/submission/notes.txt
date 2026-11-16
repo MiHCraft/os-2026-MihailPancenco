@@ -1,0 +1,30 @@
+Lab 13 — Semaphores in Your Own Kernel
+Ubuntu in VirtualBox, QEMU 10.2.1, three virtual CPUs
+
+1. Each process writes one character per write() call. A line has
+   30 letters and one newline, so it takes 31 system calls. Another
+   process can write between calls. Both unlocked runs mixed A and b.
+
+2. sem_down(3) before the character loop takes the one permit.
+   sem_up(3) after the loop returns it. The newline is inside the
+   critical section. The locked run printed five whole A lines and
+   five whole b lines.
+
+3. A post can wake multiple waiters. Another waiter may acquire the
+   lock and consume the only permit first. A waking process must
+   recheck the count under the spinlock and wait again if it is zero.
+
+4. A poster needs the same spinlock to increment the count and wake
+   waiters. If the waiter slept with the lock held, the poster could
+   not proceed. xv6 also requires that unrelated spinlocks be released
+   before the process enters the scheduler.
+
+Check 1: the user-side stubs reached the kernel as unknown calls
+24, 25 and 26. Without blocking, the child printed before the parent.
+Check 2: the parent printed first, ping and pong alternated three times,
+and semtest printed "semtest: OK".
+
+Optional sem_trydown (27): the first try on an empty slot returned -1
+immediately. After one post the next try returned 0 and used the permit.
+The third try returned -1. Invalid IDs, a negative initial value and
+an increment beyond the maximum signed count were also rejected.

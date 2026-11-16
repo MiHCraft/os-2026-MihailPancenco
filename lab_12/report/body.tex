@@ -1,0 +1,40 @@
+\chapter{Introduction}
+
+Four programs ran in Ubuntu on VirtualBox. Each illustrates a synchronization problem with POSIX threads. The builds used GCC 15.2.0 and \texttt{-pthread}. The deliberately stuck variants ran with a five-second timeout.
+
+\chapter{Tasks and results}
+
+\section{Producer and consumer}
+
+The producer waits for a token from \texttt{empty}, initialized to 4, before it takes the mutex. The consumer waits for a token from \texttt{full}, initialized to 0. The mutex protects the ring-buffer indices and updates to occupancy. The consumer took all eight integers in order, occupancy reached four, and the buffer ended empty.
+
+\labshot{\textwidth}{12_01_buffer}{The bounded buffer completes. Taking the mutex before waiting for a slot stops both threads.}
+
+When the producer acquires the mutex first, it can block in \texttt{sem\_wait(\&empty)} while holding the only lock that lets the consumer free a slot. The swapped version stopped making progress and returned 124 under \texttt{timeout}. The submitted code waits for the slot first.
+
+\clearpage
+\section{Condition variable and shared readership}
+
+The mutex protects the \texttt{ready} flag and the message. Before sleeping, \texttt{pthread\_cond\_wait} releases the lock so the writer can acquire it. The reader reacquires the lock before the call returns. Both the normal loop and the \texttt{if} experiment read \texttt{hello}. A spurious wakeup may return while \texttt{ready} is still zero, so the submitted implementation uses a loop.
+
+\labshot{\textwidth}{12_02_readers}{Both condition-variable runs read the message. Three readers share access to the value.}
+
+The first reader takes \texttt{room} when \texttt{++readers == 1}. The last reader releases it when \texttt{--readers == 0}. \texttt{rlock} serializes those count changes and protects the diagnostic read of the count. The writer also acquires \texttt{room}, so it works alone. An uninterrupted stream of readers can keep the count above zero and starve a waiting writer.
+
+\clearpage
+\section{Circular wait and its removal}
+
+In the original program, thread one holds A and waits for B, which thread two holds while waiting for A. The wait cycle is \(\mathrm{one}\to B\to\mathrm{two}\to A\to\mathrm{one}\). With one-second sleeps, both messages appeared and \texttt{timeout} returned 124.
+
+\labshot{0.86\textwidth}{12_03_deadlock}{The original, the ten runs without sleeps, and the ordered-lock implementation.}
+
+Without the sleeps, \NoSleepResults. Removing the delays makes the result depend on the scheduling order because either thread can still acquire its first lock before the other acquires both. The fix makes both threads acquire A before B and release B before A. Waiting for A while holding B is then impossible, which breaks the cycle. Both threads finished and the final program returned 0.
+
+\chapter{Conclusions}
+
+The tests showed why the lock order must follow the program's dependencies. The bounded buffer waits for capacity before taking its mutex, the condition variable releases the mutex during its wait, and the two-lock program acquires its mutexes in a shared order.
+
+\begin{thebibliography}{9}
+\bibitem{sheet} Technical University of Moldova, Operating Systems. \emph{Lab 12: Producer, Consumer and the Other Tools}. Course handout, 2026--2027.
+\bibitem{posix} Linux manual pages for condition variables, semaphores and \texttt{timeout(1)}.
+\end{thebibliography}

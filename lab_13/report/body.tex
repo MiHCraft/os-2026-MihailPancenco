@@ -1,0 +1,48 @@
+\chapter{Introduction}
+
+The implementation adds eight counting semaphores shared by all xv6 processes. It uses the Ubuntu xv6 base revision \texttt{06aad25}, built and booted under QEMU in VirtualBox with three virtual CPUs. The baseline keeps system call 23 free for \texttt{trace}. The three required calls use numbers 24--26, and the optional \texttt{sem\_trydown} uses 27.
+
+\chapter{Tasks and results}
+
+\section{User-side stubs}
+
+The entries in \texttt{user/usys.pl} generate RISC-V stubs that put the syscall number in \texttt{a7} and execute \texttt{ecall}. The user header declares the functions. Adding \texttt{semtest} and \texttt{mix} to \texttt{UPROGS} installs them in the xv6 filesystem image.
+
+\labshot{0.74\textwidth}{13_01_baseline}{The baseline kernel boots and accepts a command.}
+\labshot{0.74\textwidth}{13_02_stub}{Check 1. The unknown calls reach the kernel, and the child prints first.}
+
+\clearpage
+\section{Semaphore implementation}
+
+The handler table in \texttt{kernel/syscall.c} dispatches to \texttt{kernel/sem.c}. Each slot has a counter protected by its own spinlock. \texttt{sem\_init} validates the slot and initial count. \texttt{sem\_up} increments under the lock and wakes processes waiting on the address of the same slot. It rejects increments beyond the maximum signed count.
+
+At zero, \texttt{sem\_down} registers the wait with \texttt{sleep\_prepare} under the semaphore lock, releases that lock, and sleeps. A wakeup between registration and sleep clears the channel so the process skips sleeping. The semaphore uses an interruptible form of the existing sleep logic. It checks for a pending kill while holding the process lock that guards the transition to \texttt{SLEEPING}. The wait loop rechecks the count under the semaphore lock because another process may acquire the permit first.
+
+\labshot{0.92\textwidth}{13_03_semaphore}{Check 2. The child waits for the parent, ping and pong alternate, and try-down succeeds only with a permit.}
+
+\clearpage
+\section{A semaphore as a lock}
+
+Each process prints five lines with 30 letters and a newline. Each line takes 31 \texttt{write} calls. Without an outer lock the kernel may run the other process between two calls, so A and b can appear on one line.
+
+\labshot{\textwidth}{13_04_mix}{Two runs of \texttt{mix} with unprotected character writes.}
+
+\clearpage
+\subsection{With the lock enabled}
+
+With the lock enabled, \texttt{sem\_down(3)} precedes the loop that writes the line and \texttt{sem\_up(3)} follows it. The semaphore starts at one. The ten observed lines were whole, five of A and five of b.
+
+\labshot{0.78\textwidth}{13_05_locked}{Each line is whole with the one-permit semaphore.}
+
+\section{Observe answers}
+
+The caller cannot assume the count is positive after a wakeup. One post can wake several processes, and the first to reacquire the lock may take the only permit. The rest must check the count and wait again. If a process slept while holding the semaphore spinlock, a poster could not acquire the lock to increment the count and wake it. xv6's scheduler also requires the caller to release unrelated spinlocks before sleeping.
+
+\chapter{Conclusions}
+
+The registered calls change the order of the parent and child, alternate access between two processes, and protect a series of character writes as one critical section. The submission contains the complete xv6 source tree and the observed outputs.
+
+\begin{thebibliography}{9}
+\bibitem{sheet} Technical University of Moldova, Operating Systems. \emph{Lab 13: Semaphores in Your Own Kernel}. Course handout, 2026--2027.
+\bibitem{xv6} MIT PDOS. \emph{xv6-riscv}, base revision \texttt{06aad25c735fd3159bdfae5680be4eab7b1668b2}.
+\end{thebibliography}

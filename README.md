@@ -20,3 +20,6 @@ Each laboratory contains three directories:
 | 08 | The Same Calls, Inside Your Own OS | [PDF](lab_08/report/main.pdf) |
 | 09 | Watching System Calls with strace | [PDF](lab_09/report/main.pdf) |
 | 10 | Add Your Own System Call: trace | [PDF](lab_10/report/main.pdf) |
+| 11 | The Race and the Semaphore | [PDF](lab_11/report/main.pdf) |
+| 12 | Producer, Consumer and the Other Tools | [PDF](lab_12/report/main.pdf) |
+| 13 | Semaphores in Your Own Kernel | [PDF](lab_13/report/main.pdf) |

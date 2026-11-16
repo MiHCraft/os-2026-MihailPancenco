@@ -1,0 +1,71 @@
+Ubuntu in VirtualBox, 16 November 2026
+
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o prodcons prodcons.c
+$ ./prodcons
+put  1   (in buffer: 1)
+put  2   (in buffer: 2)
+put  3   (in buffer: 3)
+put  4   (in buffer: 4)
+            take 1   (in buffer: 3)
+put  5   (in buffer: 4)
+            take 2   (in buffer: 3)
+put  6   (in buffer: 4)
+            take 3   (in buffer: 3)
+put  7   (in buffer: 4)
+            take 4   (in buffer: 3)
+put  8   (in buffer: 4)
+            take 5   (in buffer: 3)
+            take 6   (in buffer: 2)
+            take 7   (in buffer: 1)
+            take 8   (in buffer: 0)
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o prodcons_swapped prodcons_swapped.c
+$ timeout 5 stdbuf -oL ./prodcons_swapped; code=$?; echo "exit code: $code"; test "$code" -eq 124
+put  1   (in buffer: 1)
+put  2   (in buffer: 2)
+put  3   (in buffer: 3)
+put  4   (in buffer: 4)
+exit code: 124
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o condvar condvar.c
+$ ./condvar
+B: not ready, I sleep
+A: message written
+B: I read "hello"
+$ sed 's/while (!ready)/if (!ready)/' condvar.c > condvar_if.c
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o condvar_if condvar_if.c
+$ ./condvar_if
+B: not ready, I sleep
+A: message written
+B: I read "hello"
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o readers readers.c
+$ ./readers
+writer 1 writes 10  (alone)
+reader 3 reads 10   (readers inside: 1)
+reader 1 reads 10   (readers inside: 2)
+reader 2 reads 10   (readers inside: 3)
+writer 2 writes 20  (alone)
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o deadlock_original deadlock_original.c
+$ timeout 5 stdbuf -oL ./deadlock_original; code=$?; echo "exit code: $code"; test "$code" -eq 124
+one: I have A, I want B
+two: I have B, I want A
+exit code: 124
+$ sed '/sleep(1);/d' deadlock_original.c > deadlock_no_sleep.c
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o deadlock_no_sleep deadlock_no_sleep.c
+$ for i in {1..10}; do timeout 2 ./deadlock_no_sleep >/dev/null; echo "run $i: exit $?"; done
+run 1: exit 124
+run 2: exit 124
+run 3: exit 124
+run 4: exit 124
+run 5: exit 124
+run 6: exit 124
+run 7: exit 124
+run 8: exit 124
+run 9: exit 124
+run 10: exit 124
+$ gcc -O0 -Wall -Wextra -Wno-unused-parameter -Werror -pthread -o deadlock deadlock.c
+$ timeout 5 ./deadlock; code=$?; echo "exit code: $code"; exit "$code"
+one: I have A, I want B
+one: I have both
+two: I have A, I want B
+two: I have both
+done
+exit code: 0

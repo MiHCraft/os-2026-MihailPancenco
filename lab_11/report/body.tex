@@ -1,0 +1,43 @@
+\chapter{Introduction}
+
+Two POSIX threads updated a shared counter one million times each. The tests ran in Ubuntu on VirtualBox with GCC 15.2.0, \texttt{-O0}, and \texttt{-pthread}. Later experiments used the same semaphore interface to signal that a message was ready and to count vacant parking spaces.
+
+\chapter{Tasks and results}
+
+\section{Lost increments}
+
+\texttt{counter++} reads the current value, adds one, and writes the result. If both threads read 17 before either writes, both store 18 and one increment disappears. The scheduler and the relative progress of the threads change which updates overlap. In C the unprotected operations form a data race, so the program has undefined behavior. With the observed build, the three runs gave \RaceResults.
+
+\labshot{\textwidth}{11_01_counter}{The unprotected counter varies. The mutex and one-permit semaphore both reach 2,000,000 on every run.}
+
+\clearpage
+\section{Mutual exclusion and its cost}
+
+The workers lock the mutex before each increment and unlock it afterward. The semaphore initialized to 1 brackets the same update with \texttt{sem\_wait} and \texttt{sem\_post}. Both reached 2,000,000 on all three runs. Initializing the semaphore to 2 lets both workers hold a permit simultaneously. The resulting counts were \TwoPermitResults.
+
+\labshot{\textwidth}{11_02_permits}{Two permits reproduce the lost updates. The timing run compares the four counter implementations.}
+
+The locks add a synchronized acquire and release to every increment. Under contention these operations serialize access to the counter and can block a thread. The observed elapsed times were \CounterTimes. The atomic increment returned 2,000,000 through an indivisible read-modify-write operation.
+
+\clearpage
+\section{A semaphore as a signal}
+
+With the message semaphore at zero, B waits until A writes \texttt{hello} and posts. At one, B immediately consumes the initial permit and read the empty zero-initialized string on this run. An initial value of zero means a waiter needs a post before it can proceed.
+
+\labshot{\textwidth}{11_03_order}{The initial permit determines whether the reader waits for the writer.}
+
+\clearpage
+\section{A semaphore as a capacity limit}
+
+The parking semaphore starts with three permits. Each car calls \texttt{sem\_wait(\&places)} before entering and returns its permit with \texttt{sem\_post} after leaving. The largest observed occupancy was three. With \texttt{PLACES=1}, one car entered at a time. The separate mutex keeps each occupancy update and its printed line together.
+
+\labshot{0.91\textwidth}{11_04_parking}{The parking program reaches three cars with three permits and one car with one permit.}
+
+\chapter{Conclusions}
+
+The initial count determines how many operations can proceed before a post. One permit serialized updates, zero imposed an order between two threads, and three bounded occupancy.
+
+\begin{thebibliography}{9}
+\bibitem{sheet} Technical University of Moldova, Operating Systems. \emph{Lab 11: The Race and the Semaphore}. Course handout, 2026--2027.
+\bibitem{posix} Linux manual pages for POSIX mutexes and semaphores.
+\end{thebibliography}
